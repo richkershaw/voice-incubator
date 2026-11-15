@@ -259,11 +259,11 @@ async def _shared_alarms(tmp_path) -> None:
         await wait_for(lambda: app.alarms.ready and app.satellite(KITCHEN).area_id == app.satellite(BEDROOM).area_id == "kitchen")
 
         # Set on the counter: the Kitchen's, said on the table too.
-        assert await said("set an alarm for 7 am tomorrow", KITCHEN) == "Set an alarm for 7:00 AM tomorrow."
+        assert await said("set an alarm for 7 am tomorrow", KITCHEN) == "Set an alarm for 7 AM tomorrow."
         [event] = hass.calendar_events[calendar]
         assert "[voice_incubator:alarm:kitchen]" in event["description"]
         await wait_for(lambda: len(app.alarms.upcoming("alarm", "kitchen")) == 1)
-        assert await said("what alarms do i have", BEDROOM) == "You have an alarm at 7:00 AM tomorrow."
+        assert await said("what alarms do i have", BEDROOM) == "You have an alarm at 7 AM tomorrow."
 
         # One marked with the counter rings both; "stop" on one stops both.
         soon = datetime.now(ZoneInfo("Europe/Berlin")) + timedelta(seconds=1)

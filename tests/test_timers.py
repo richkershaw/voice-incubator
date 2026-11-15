@@ -277,7 +277,7 @@ def test_alarms_ring_at_the_next_time_it_comes_round():
     evening = datetime(2026, 10, 15, 22, 0)
     plan = timers.plan("alarm", {"time": "seven"}, [], evening)
     assert plan.outcome == "done" and plan.service == "create_timer"
-    assert plan.data == {"duration": 9 * 3600, "name": "alarm"} and plan.speech == "Set an alarm for 7:00 AM."
+    assert plan.data == {"duration": 9 * 3600, "name": "alarm"} and plan.speech == "Set an alarm for 7 AM."
     assert timers.plan("alarm", {"time": "7 pm"}, [], evening).data["duration"] == 21 * 3600
     assert timers.plan("alarm", {"time": "noon"}, [], evening).speech == "Set an alarm for noon."
     morning = datetime(2026, 10, 15, 6, 0)

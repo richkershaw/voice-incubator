@@ -89,6 +89,21 @@ def test_free_text_from_a_transcript_without_times(transcript, wildcard, heard, 
     assert free_text(transcript, wildcard, heard) == expected
 
 
+@pytest.mark.parametrize(
+    ("transcript", "heard", "expected"),
+    [
+        # Compared as said: "7" is "seven", not "the" before "alarm".
+        ("cancel the alarm for 7", "seven", "7"),
+        ("cancel the alarm for 5.50", "five point five", "5.50"),
+        ("cancel the alarm for 7 am tomorrow", "seven am tomorrow", "7 am tomorrow"),
+        ("cancel the 7 o'clock alarm", "seven o'clock", "7 o'clock"),
+    ],
+)
+def test_free_text_is_compared_as_said(transcript, heard, expected):
+    wildcard = {"before": ["alarm"], "after": ["for", "at"], "max_words": 6}
+    assert free_text(transcript, wildcard, heard, "en") == expected
+
+
 class StubHass:
     def __init__(self, text=None, error=None):
         self.text, self.error, self.calls = text, error, []

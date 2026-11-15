@@ -64,6 +64,19 @@ async def stream_sentences(chunks: AsyncIterable[str]) -> AsyncIterator[str]:
                 yield line.strip()
 
 
+_ON_THE_HOUR = re.compile(r"\b(\d{1,2}):00(?=\s*[ap]\.?m\b)", re.IGNORECASE)
+_OH = re.compile(r"\b(\d{1,2}):0([1-9])\b")
+
+
+def said_as(text: str, espeak_voice: str) -> str:
+    """``text`` as an English voice should read it: espeak-ng reads "5:00 PM"
+    as "five zero zero P M" and "5:07" as "five zero seven"; said "five P M"
+    and "five oh seven". Other languages' as they are."""
+    if not espeak_voice.lower().startswith("en"):
+        return text
+    return _OH.sub(r"\1 oh \2", _ON_THE_HOUR.sub(r"\1", text))
+
+
 def load_voice(path: Path) -> PiperVoice:
     """``PiperVoice.load``, with a session that gives back what it used
     (adapt_ctc.runtime): 87 MB after speaking rather than 146."""
@@ -222,7 +235,7 @@ class Speech:
         voice = voice or self._voice
         chosen = self._synthesis() if settings is None else settings
         config = SynthesisConfig(**synthesis(chosen, voice.config.speaker_id_map or {}))
-        chunks = list(voice.synthesize(text, syn_config=config))
+        chunks = list(voice.synthesize(said_as(text, voice.config.espeak_voice), syn_config=config))
         if not chunks:
             return np.zeros(0, dtype=np.float32), voice.config.sample_rate
         audio = np.concatenate(

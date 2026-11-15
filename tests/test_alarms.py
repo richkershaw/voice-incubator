@@ -65,6 +65,20 @@ def test_when(said, alarm, start, rrule, rest):
         ("for seven hundred thirty", True, "2026-10-21 19:30", ""),
         # A length that is the reminder's, before its time.
         ("to rest for 10 minutes at 5 pm", False, "2026-10-21 17:00", "to rest for 10 minutes"),
+        # Times not written as a clock: "five fifty", "five oh one", "five seventeen".
+        ("5.50", True, "2026-10-21 17:50", ""),
+        ("5-0-1", True, "2026-10-21 17:01", ""),
+        ("517", True, "2026-10-21 17:17", ""),
+        ("1930", True, "2026-10-21 19:30", ""),
+        ("5-0-1 tomorrow", True, "2026-10-22 05:01", ""),
+        ("to call mom at 517", False, "2026-10-21 17:17", "to call mom"),
+        ("to call mom 5.50 pm", False, "2026-10-21 17:50", "to call mom"),
+        # Am and pm with dots.
+        ("7 a.m.", True, "2026-10-22 07:00", ""),
+        ("at 7 A.M. tomorrow", True, "2026-10-22 07:00", ""),
+        ("7a.m.", True, "2026-10-22 07:00", ""),
+        ("5.50 p.m.", True, "2026-10-21 17:50", ""),
+        ("at 9 p.m. to call mom", False, "2026-10-21 21:00", "to call mom"),
     ],
 )
 def test_what_speech_to_text_makes_of_it(said, alarm, start, rest):
@@ -82,6 +96,9 @@ def test_an_hours_leading_zero():
 
 def test_no_time_is_none():
     assert calendar().when("to call mom", NOW) is None
+    # A number in a reminder is its time only where it can be nothing else.
+    assert calendar().when("to call room 517", NOW) is None
+    assert calendar().when("to pay 5.50 to dad", NOW) is None
     assert calendar().when("", NOW, alarm=True) is None
 
 
@@ -98,6 +115,9 @@ def _event(uid, hour, minute=0, days=1, kind="alarm", rrule=None, summary="Alarm
 def test_alarm():
     plan = alarms.plan("alarm", {"time": "7:30 tomorrow"}, NOW, [], [])
     assert plan.outcome == "done" and plan.speech == "Set an alarm for 7:30 AM tomorrow."
+    # On the hour without ":00", and so said "seven P M" (tts.said_as says ":07" as "oh seven").
+    assert calendar().alarm_due("Alarm", NOW.replace(hour=17)) == "It's 5 PM."
+    assert calendar().alarm_due("Alarm", NOW.replace(hour=17, minute=7)) == "It's 5:07 PM."
     assert plan.create == {"kind": "alarm", "summary": "Alarm", "start": NOW.replace(hour=7, minute=30) + timedelta(days=1),
                            "rrule": None}
     assert alarms.plan("alarm", {}, NOW, [], []).outcome == "missing_time"
@@ -123,6 +143,9 @@ def test_cancel_picks_the_alarm():
     assert plan.outcome == "done" and plan.delete == [seven]
     assert alarms.plan("cancel_alarm", {"time": "7"}, NOW, [seven, seven_pm], []).outcome == "ambiguous"
     assert alarms.plan("cancel_alarm", {"time": "7 pm"}, NOW, [seven, seven_pm], []).delete == [seven_pm]
+    assert alarms.plan("cancel_alarm", {"time": "7 a.m."}, NOW, [seven, seven_pm], []).delete == [seven]
+    assert alarms.plan("cancel_alarm", {"time": "6-30"}, NOW, [seven, weekdays], []).delete == [weekdays]
+    assert alarms.plan("cancel_alarm", {"time": "630"}, NOW, [seven, weekdays], []).delete == [weekdays]
     assert alarms.plan("cancel_alarm", {"time": "8"}, NOW, [seven], []).outcome == "not_found"
     which = alarms.plan("cancel_alarm", {}, NOW, [seven, weekdays], [])
     assert which.outcome == "ambiguous" and [c["id"] for c in which.choices] == ["1", "3"]
@@ -159,7 +182,7 @@ def test_cancel_picks_the_reminder():
     assert cancel("at 7 pm").outcome == "not_found"
     assert cancel("to call mom", []).outcome == "no_reminders"
     done = cancel("to call mom")
-    assert done.speech == "Cancelled the reminder at 5:00 PM: Call your mom."
+    assert done.speech == "Cancelled the reminder at 5 PM: Call your mom."
 
 
 def test_cancel_alarm_by_its_day():
@@ -170,7 +193,7 @@ def test_cancel_alarm_by_its_day():
 
 def test_status():
     plan = alarms.plan("alarm_status", {}, NOW, [_event("1", 7)], [])
-    assert plan.speech == "You have an alarm at 7:00 AM tomorrow."
+    assert plan.speech == "You have an alarm at 7 AM tomorrow."
     assert alarms.plan("alarm_status", {}, NOW, [], []).speech == "No alarms are set."
     call = _event("2", 17, days=0, kind="reminder", summary="Call mom")
     assert "Call mom" in alarms.plan("reminder_status", {}, NOW, [], [call]).speech

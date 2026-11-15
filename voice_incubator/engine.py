@@ -1018,6 +1018,7 @@ class Engine:
         with self._lock:
             recognizer = self.recognizer
         language = recognizer.config.language if recognizer is not None else languages.current().code
+        text = _MERIDIEM_DOTS.sub(lambda m: m.group(1) + m.group(2), text)
         spellings = spoken_words(text, language)
         log_probs, unspellable = self.model.vocab.text_log_probs(spellings[0] if spellings else [])
         built = time.perf_counter() - started
@@ -1729,7 +1730,8 @@ class Engine:
         _took(recognition.timings, _timing(transcriber), started)
         recognition.tdt_transcript = transcript
         if words is None:
-            text = free_text(transcript, wildcard, str(decision.slots.get(slot) or "")) or ""
+            language = self.recognizer.config.language if self.recognizer is not None else ""
+            text = free_text(transcript, wildcard, str(decision.slots.get(slot) or ""), language) or ""
             # Text to the end stops before the place it was told apart from:
             # a room, a floor, a device ("on the Mark 2").
             places = [use.meaning.phrase for use in decision.intent.spans if use.role == "name"]
@@ -2099,7 +2101,13 @@ def without_place(text: str, places: list[str], filler: list[str] | None = None,
     return " ".join(words)
 
 
-def free_text(transcript: str, wildcard: dict[str, Any], heard: str = "") -> str | None:
+_MERIDIEM_DOTS = re.compile(r"(?<![^\W\d_])([ap])\.\s?(m)\b\.?", re.IGNORECASE)
+"""Am and pm written with dots, as speech-to-text writes them ("7 a.m."):
+typed text reads them as "am" and "pm", one word each -- spelled "a m",
+the matcher's free text would end at the filler "a"."""
+
+
+def free_text(transcript: str, wildcard: dict[str, Any], heard: str = "", language: str = "") -> str | None:
     """A wildcard's text in a transcript without word times, found as the
     recognizer found it: after one of its ``after`` keywords (to the end, or
     up to a ``before`` keyword), or before one of its ``before`` keywords; as
@@ -2107,7 +2115,9 @@ def free_text(transcript: str, wildcard: dict[str, Any], heard: str = "") -> str
 
     A keyword can come more than once ("how much *time* is left on the pizza
     *timer*"), so every place it could be is read, and the one closest to what
-    the CTC head heard (``heard``) wins."""
+    the CTC head heard (``heard``) wins: compared as said in ``language``,
+    when given -- the CTC head spells "7" as "seven", "5.50" as "five point
+    five" -- so "for 7" is closer to "seven" than "the" before "alarm"."""
     words = [_strip(w) for w in transcript.split()]
     words = [w for w in words if w]
     lower = [w.lower() for w in words]
@@ -2121,8 +2131,13 @@ def free_text(transcript: str, wildcard: dict[str, Any], heard: str = "") -> str
                     found.append((i, i + len(parts)))
         return sorted(found)
 
+    def said(text: str) -> str:
+        return sentence_key(text, language) if language else _norm(text)
+
     count = max(1, len(heard.split())) if heard else int(wildcard.get("max_words") or 3)
     count = min(count, int(wildcard.get("max_words") or count))
+    # As many words as were heard: said, a written word may be several ("5.50").
+    lengths = range(1, count + 1) if heard and language else range(count, count + 1)
     afters = find(wildcard.get("after") or [])
     befores = find(wildcard.get("before") or [])
     bounded, to_end = bool(wildcard.get("bounded")), bool(wildcard.get("to_end"))
@@ -2137,17 +2152,19 @@ def free_text(transcript: str, wildcard: dict[str, Any], heard: str = "") -> str
         if not bounded:
             # Unbounded, a later keyword need not end it ("a timer named
             # lasagna for the time being").
-            candidates.append(words[start : start + count])
+            candidates += [words[start : start + n] for n in lengths]
     if not bounded and not to_end:
-        candidates += [words[max(0, end - count) : end] for end, _ in befores]
+        candidates += [words[max(0, end - n) : end] for end, _ in befores for n in lengths]
     candidates = [c for c in candidates if c]
     if not candidates:
         return None
     if heard:
-        target = _norm(heard)
+        target = said(heard)
         best = max(
             candidates,
-            key=lambda c: (difflib.SequenceMatcher(None, _norm(" ".join(c)), target).ratio(), -abs(len(c) - count)),
+            key=lambda c: (
+                difflib.SequenceMatcher(None, said(" ".join(c)), target).ratio(), -abs(len(said(" ".join(c))) - len(target))
+            ),
         )
     else:
         best = candidates[0]

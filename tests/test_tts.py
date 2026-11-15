@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from voice_incubator.tts import Speech, sentences_of
+from voice_incubator.tts import Speech, said_as, sentences_of
 
 ROOT = Path(__file__).resolve().parent.parent
 VOICE = ROOT / "models/piper/en_US-ellie-medium.onnx"
@@ -45,6 +45,16 @@ def test_sentences_without_markup():
 
 
 @pytest.mark.skipif(not VOICE.exists(), reason="needs the English Piper voice")
+def test_clock_times_said_as_english_voices_read_them():
+    """espeak-ng reads "5:00 PM" as "five zero zero P M" and "5:07" as "five
+    zero seven"."""
+    assert said_as("It's 5:00 PM.", "en-us") == "It's 5 PM."
+    assert said_as("Set an alarm for 5:07 PM.", "en-us") == "Set an alarm for 5 oh 7 PM."
+    assert said_as("Wake up at 7:00 a.m.", "en-gb-x-rp") == "Wake up at 7 a.m."
+    assert said_as("It's 5:30 PM, the score 10:00.", "en-us") == "It's 5:30 PM, the score 10:00."
+    assert said_as("Es ist 17:05 Uhr.", "de") == "Es ist 17:05 Uhr."
+
+
 def test_said_whole_or_acknowledged():
     speech = Speech(VOICE, ROOT / "models")
     asyncio.run(speech.start())

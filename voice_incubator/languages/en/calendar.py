@@ -53,21 +53,38 @@ class When:
     """The words that said when."""
 
 
-def _is_when_word(word: str) -> bool:
+def _plain(word: str) -> str:
+    """A word lowercase, without the punctuation around it or the dots of
+    "a.m." and "p.m."."""
     w = word.lower().strip(",.!?")
+    return re.sub(r"(?<![a-z])([ap])\.m\b", r"\1m", w)
+
+
+def _is_when_word(word: str) -> bool:
+    w = _plain(word)
     return w in _WHEN_WORDS or bool(re.fullmatch(r"\d{1,2}(:\d{2})?(am|pm)?", w))
 
 
-def _run(words: list[str], from_end: bool) -> tuple[int, int]:
+_DIGITS = re.compile(r"\d{1,2}\.\d{2}(am|pm)?|\d{1,2}(-\d{1,2}){1,2}|\d{3,4}(am|pm)?")
+"""A time as speech-to-text may write one, not as a clock: "5.50", "5-0-1",
+"517", "1930" -- a time in an alarm's, but in a reminder's only where it
+can be nothing else: after "at" or "by", or before am or pm (not "room 517")."""
+
+
+def _run(words: list[str], from_end: bool, alarm: bool = False) -> tuple[int, int]:
     """The longest run of time words at the start or the end: (begin, end)."""
     n = len(words)
 
     def ok(i: int) -> bool:
-        w = words[i].lower().strip(",.!?")
+        w = _plain(words[i])
         if w == "to":  # "quarter to eight", "ten to eight": not "to call mom"
             before = words[i - 1].lower() if i > 0 else ""
             after = words[i + 1].lower().strip(",.!?") if i + 1 < n else ""
             return (before in _NUMBER_WORDS or before.isdigit()) and (after in _NUMBER_WORDS or after.isdigit())
+        if _DIGITS.fullmatch(w):
+            before = _plain(words[i - 1]) if i > 0 else ""
+            after = _plain(words[i + 1]) if i + 1 < n else ""
+            return alarm or before in ("at", "by") or after in ("am", "pm") or w.endswith("m")
         return _is_when_word(words[i])
 
     if from_end:
@@ -104,7 +121,7 @@ def when(text: str, now: datetime, alarm: bool = False) -> When | None:
     words = _joined(text).split()
     best: tuple[When, int] | None = None
     for from_end in (False, True):
-        begin, end = _run(words, from_end)
+        begin, end = _run(words, from_end, alarm)
         found = None
         while begin < end:
             found = _read(" ".join(words[begin:end]), now, alarm)

@@ -2023,13 +2023,13 @@ async def _calendar(tmp_path: Path) -> None:
         assert str(app.alarms.tz) == "Europe/Berlin"
 
         # An alarm: an event in Home Assistant's time zone, marked as this satellite's.
-        assert await said("set an alarm for 7 am tomorrow") == "Set an alarm for 7:00 AM tomorrow."
+        assert await said("set an alarm for 7 am tomorrow") == "Set an alarm for 7 AM tomorrow."
         [event] = hass.calendar_events[calendar]
         assert event["summary"] == "Alarm" and f"[voice_incubator:alarm:{MAC}]" in event["description"]
         start = datetime.fromisoformat(event["start"])
         assert start.hour == 7 and start.utcoffset() == start.astimezone(ZoneInfo("Europe/Berlin")).utcoffset()
         await wait_for(lambda: len(app.alarms.upcoming("alarm", MAC)) == 1)
-        assert await said("what alarms do i have") == "You have an alarm at 7:00 AM tomorrow."
+        assert await said("what alarms do i have") == "You have an alarm at 7 AM tomorrow."
 
         # A reminder with a time, on the calendar too.
         assert (await said("remind me every tuesday at 7 pm to take out the bins")).startswith("I'll remind you to take out the bins")
@@ -2072,10 +2072,18 @@ async def _calendar(tmp_path: Path) -> None:
         assert hass.calendar_reads == reads
 
         # Cancelled: off the calendar (the one that rang has gone by).
-        assert await said("cancel my alarm") == "Cancelled the alarm at 7:00 AM tomorrow."
+        assert await said("cancel my alarm") == "Cancelled the alarm at 7 AM tomorrow."
         assert event["uid"] not in [e["uid"] for e in hass.calendar_events[calendar]]
         await wait_for(lambda: not app.alarms.upcoming("alarm", MAC))
         assert await said("cancel my alarm") == "No alarms are set."
+
+        # Times as speech-to-text writes them: am and pm with dots, "five oh one".
+        assert await said("Set an alarm for 7 a.m. tomorrow.") == "Set an alarm for 7 AM tomorrow."
+        assert await said("Set an alarm for 5-0-1 p.m. tomorrow.") == "Set an alarm for 5:01 PM tomorrow."
+        await wait_for(lambda: len(app.alarms.upcoming("alarm", MAC)) == 2)
+        assert await said("Cancel the alarm for 7 a.m.") == "Cancelled the alarm at 7 AM tomorrow."
+        await wait_for(lambda: len(app.alarms.upcoming("alarm", MAC)) == 1)
+        assert await said("Cancel the alarm for 5.01 p.m.") == "Cancelled the alarm at 5:01 PM tomorrow."
     finally:
         runner.cancel()
         await app.stop()

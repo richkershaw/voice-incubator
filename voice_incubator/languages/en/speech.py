@@ -323,13 +323,13 @@ def duration(seconds: float, adjective: bool = False) -> str:
 
 
 def clock(hour: int, minute: int) -> str:
-    """A time of day: "7:30 AM", "noon"."""
+    """A time of day: "7:30 AM", "7 AM", "noon"."""
     if (hour, minute) == (12, 0):
         return "noon"
     if (hour, minute) == (0, 0):
         return "midnight"
     suffix = "AM" if hour < 12 else "PM"
-    return f"{hour % 12 or 12}:{minute:02d} {suffix}"
+    return f"{hour % 12 or 12}{f':{minute:02d}' if minute else ''} {suffix}"
 
 
 def _timer(timer: dict[str, Any], capital: bool = False) -> str:
