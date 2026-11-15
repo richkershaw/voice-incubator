@@ -843,23 +843,25 @@ async def _scenario(tmp_path: Path) -> None:
             asked = len(hass.conversations)
             assert (await agent_said("nonsense words"))[0] == "Sorry, I didn't understand that."
             assert len(hass.conversations) == asked + 1
-            # A person's own agent: with one person here, every sentence is
-            # theirs, and so is the agent -- in its own conversation, which
-            # chatty's is not.
+            # A typed test has no speaker: the home's agent gets it, even with
+            # one person -- whose own agent a call from them would use.
             app.store.people["Mike"] = {"agent": "conversation.home_assistant"}
+            assert app.agent_for("Mike") == "conversation.home_assistant"
             text, record = await agent_said("who wrote the aeneid")
-            assert text == "conversation.home_assistant heard who wrote the aeneid"
-            asked = hass.conversations[-1]
-            assert asked["agent_id"] == "conversation.home_assistant" and "conversation_id" not in asked
-            assert next(s for s in record.stages if s["stage"] == "agent")["agent"] == "conversation.home_assistant"
-            await agent_said("and in what year")
-            assert hass.conversations[-1]["conversation_id"] == "conversation-3"
-            # Two people: nobody is the only person, so nobody is known and
-            # the home's gets it.
-            app.store.people["Anna"] = {}
-            await agent_said("who wrote the iliad")
-            assert hass.conversations[-1]["agent_id"] == "conversation.chatty"
-            del app.store.people["Mike"], app.store.people["Anna"]
+            assert text == "conversation.chatty heard who wrote the aeneid"
+            assert next(s for s in record.stages if s["stage"] == "agent")["agent"] == "conversation.chatty"
+            del app.store.people["Mike"]
+            # Two agents in one area keep their own conversations: neither is
+            # sent the other's.
+            key = conversation_key(app.satellite(MAC))
+            await app.agent.ask(key, "hello chatty", None, "en")
+            chatty = app.agent.conversations[("conversation.chatty", key)].id
+            await app.agent.ask(key, "hello home", None, "en", agent_id="conversation.home_assistant")
+            assert "conversation_id" not in hass.conversations[-1]
+            home = app.agent.conversations[("conversation.home_assistant", key)].id
+            assert home != chatty
+            await app.agent.ask(key, "and again", None, "en")
+            assert hass.conversations[-1]["conversation_id"] == chatty
             # Home Assistant's own agent has nothing to stream; nor has an
             # integration from before it streamed: asked at once.
             assert (await http.put("/api/settings", json={"agent": "conversation.home_assistant"})).status == 200
@@ -1810,10 +1812,18 @@ async def _voices(tmp_path: Path) -> None:
         assert await satellite.call(read_call(CALLS / "call-19757.wav")) == "done"
         assert spoken[-1]["options"] == {"voice": "GuyNeural"}
         del app.store.people["Anna"]
-        # A person's own answer voice: in theirs, over the agent's own.
-        app.store.people["Anna"] = {"agent_voice": {"tts": "tts.fake_cloud", "tts_voice": "AriaNeural"}}
+        # A person's own agent and answer voice: a call from them (the only
+        # person here) goes to theirs, and its answer is said in theirs, over
+        # the agent's own.
+        app.store.people["Anna"] = {
+            "agent": "conversation.chatty",
+            "agent_voice": {"tts": "tts.fake_cloud", "tts_voice": "AriaNeural"},
+        }
+        streams = len(hass.tts_streams)
         assert await satellite.call(read_call(CALLS / "call-19757.wav")) == "done"
-        assert spoken[-1]["options"] == {"voice": "AriaNeural"}
+        assert hass.conversations[-1]["agent_id"] == "conversation.chatty"
+        assert len(hass.tts_streams) == streams + 1
+        assert list(hass.tts_streams.values())[-1]["message"]["options"] == {"voice": "AriaNeural"}
         del app.store.people["Anna"]
         for key in ("agent", "agent_voice"):
             del app.store.settings[key]

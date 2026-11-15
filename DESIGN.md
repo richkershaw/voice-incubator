@@ -1148,7 +1148,8 @@ a command with `mine` acts on (`people.mine`, in `actions.run`), and their
 own text-to-speech voice is the reply's (`VoiceIncubatorApp.voice_for`). What
 nothing here understood goes to the conversation agent of the person
 speaking -- theirs if they picked one (`people.json` `agent`), else the
-home's (`VoiceIncubatorApp.agent_for`) -- and its answers are said in a voice
+home's (`VoiceIncubatorApp.agent_for`; a sentence typed in Try has no
+speaker, so it is the home's) -- and its answers are said in a voice
 of theirs if they picked one (`people.json` `agent_voice`, else
 `settings.json` `agent_voice`; `VoiceIncubatorApp.agent_voice`). [ReDimNet-b2](models/speaker/) (22 MB, raw waveform in, mel frontend
 inside the graph) embeds the AEC capture from 1.2 s before the end of the wake
@@ -2170,8 +2171,9 @@ command fallback -- a question still gets an answer:
    area has its own) with that agent: a person's own agent
    (`people.json` `agent`, the People page) has its own conversation there, so
    neither is sent the other's. A sentence goes to the agent of the person
-   speaking -- theirs, else the home's (`VoiceIncubatorApp.agent_for`) -- and
-   is kept for `agent_keep_minutes` (5, the Voice PE's
+   speaking -- theirs, else the home's (`VoiceIncubatorApp.agent_for`); one
+   typed in Try has no speaker, so it goes to the home's. Each is kept for
+   `agent_keep_minutes` (5, the Voice PE's
    `conversation_timeout`) after the agent's last answer there. An LLM's
    answer is streamed through the integration
    (`voice_incubator/conversation/stream`: the agent asked in a chat log opened

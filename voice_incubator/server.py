@@ -133,6 +133,9 @@ ASKED_SECONDS = 60.0
 FROM_HOME_ASSISTANT = "home_assistant"
 """Who wrote the words recognized (Decision.text_source): Home Assistant,
 which sent them to the conversation agent."""
+SPEAKER = object()
+"""A fallback agent's name unless given (``_carry_out``'s ``agent_name``): the
+speaker's own."""
 
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
@@ -3254,6 +3257,7 @@ class VoiceIncubatorApp:
         confirmed: bool = False,
         listens: bool = False,
         picked: list[str] | None = None,
+        agent_name: Any = SPEAKER,
     ) -> tuple[str | Streamed | None, str, str]:
         """Run (or show) the decided command. Returns what to say (None: a
         silent command, not even the acknowledgement sound; an LLM agent's
@@ -3264,11 +3268,13 @@ class VoiceIncubatorApp:
         see it; ``cue``: plays one of its sounds (asking the conversation
         agent); ``confirmed``: its question was answered yes (or can't be
         heard); ``listens``: the satellite hears an answer (which is asked);
-        ``picked``: which was answered. Two commands said together
+        ``picked``: which was answered; ``agent_name``: whose conversation
+        agent gets what nothing understood (the speaker's, unless given: a
+        typed test has no speaker). Two commands said together
         (``then``; voice_incubator/compound.py): each, and what both say as one."""
         if decision.command is not None and decision.then is not None:
             return await self._carry_out_both(decision, satellite, speaker, dry_run, record, wake_word)
-        agent = self.agent_for(speaker.get("name"))
+        agent = self.agent_for(speaker.get("name") if agent_name is SPEAKER else agent_name)
         if (
             decision.command is None
             and decision.answer is None
@@ -4107,7 +4113,9 @@ class VoiceIncubatorApp:
         """``text`` as a command said on this satellite (else as on one in
         ``area``): as if heard word for word (no speech recognition), or
         (``speak``) said by Piper and recognized -- the whole pipeline after
-        the wake word."""
+        the wake word. A typed sentence has no speaker to identify: what
+        nothing understood goes to the home's conversation agent, though
+        commands still see the only person, if there is one."""
         if satellite_key:
             satellite = self.satellite(satellite_key)
         else:
@@ -4132,7 +4140,9 @@ class VoiceIncubatorApp:
         who = self.speaking()
         decision = await self._referring(decision, satellite, record)
         decision = await self._listed(decision, satellite, record)
-        speech, outcome, summary = await self._carry_out(decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record)
+        speech, outcome, summary = await self._carry_out(
+            decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record, agent_name=None,
+        )
         if isinstance(speech, Streamed):
             speech = await speech.text()
         record.stage("speech", text=speech or "", **({"silent": True} if speech is None else {}))

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- **A typed Try goes to the home's conversation agent.** A typed sentence has
+  no speaker to identify, so a one-person home is no longer taken to be them
+  for the fallback: the trace shows the agent Settings picked, as a real call
+  from someone unknown would. Commands typed there still see the only person
+  ("add to my list").
+
 ## 0.3.1
 
 - **Each person can have their own conversation agent, and a voice for its
