@@ -168,9 +168,9 @@ compiled -- adapt-ctc's Viterbi, the wake verifier's decoder, FluidSynth
 without the audio drivers it doesn't use -- is built in a stage of its own,
 and only the Kaldi programs the verifier runs are kept
 (`wyoming_wake_kaldi/prune.py`). Neither image has wake word training in it:
-the Wake words page installs it (below). The app's image is built the same way, by its own Dockerfile in
-[OHF-Voice/app-voice-incubator](https://github.com/OHF-Voice/app-voice-incubator)
-from a release of this source (its version: `voice_incubator/__init__.py`).
+the Wake words page installs it (below). The app's image is built the same way,
+by [`app/Dockerfile`](app/Dockerfile), from this source in a tarball that
+`scripts/app_source.sh` writes.
 
 ## Commands
 
@@ -465,7 +465,7 @@ automation's page.
 | `models/wake/stop.tflite` | microWakeWord's "stop", pushed to a satellite while a timer rings |
 | `tests/fake_hass.py`, `tests/fake_satellite.py` | stand-ins for Home Assistant and a device, for `tests/test_app.py` and UI work |
 | `Dockerfile` | the standalone image, fetching what it carries besides its code (`voice_incubator/downloads.py`) |
-| [OHF-Voice/app-voice-incubator](https://github.com/OHF-Voice/app-voice-incubator) | the Home Assistant app: its `config.yaml`, its s6 service (`rootfs/`), and its own Dockerfile, which builds a release of this source (`scripts/app_source.sh` gives it this checkout's instead) |
+| `app/` | the Home Assistant app: its `config.yaml`, its s6 service (`rootfs/`), and its Dockerfile, which builds this source from the tarball `scripts/app_source.sh` writes; `.github/workflows/app.yml` publishes it |
 | `voice_incubator/piper_voices.py`, `voice_incubator/piper_voices.json`, `scripts/piper_voices.py` | Piper's voices for the language (US and British English), from rhasspy/piper-voices at the revision the catalog was written from: each downloaded into `models/piper` the first time it is used, checked by MD5; the Settings page picks one, its speaker and Piper's inference settings (`settings.json` `piper`) |
 | `voice_incubator/downloads.py` | what the app downloads the first time it starts (Parakeet with its CTC head, EmbeddingGemma 2, GLiNER: about 470 MB, from [rhasspy/voice-incubator-models](https://huggingface.co/rhasspy/voice-incubator-models) and onnx-community, checked by SHA-256) into `/data/models`, which the image links its `models/` folders to; a progress page answers on the web UI's port meanwhile. And what the image carries, fetched as it is built (`fetch`): the speaker model (OpenVoiceOS), the microWakeWord models, and the wake verifier's Kaldi model and tools for its architecture (rhasspy/voice-incubator-models) |
 | `wake.yaml` | wake phrases, confusables, decision thresholds |

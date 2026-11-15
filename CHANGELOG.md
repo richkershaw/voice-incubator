@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1
+
+- **Each person can have their own conversation agent, and a voice for its
+  answers.** On the People page a person picks an agent (or keeps the home's
+  from Settings) and the voice its answers are said in. What no command,
+  skill or step understood goes to the agent of the person speaking.
+- **An agent's conversations are kept per area and agent.** Two agents in one
+  room are never sent each other's `conversation_id`, and an answer to a
+  question an agent asked goes back to that agent, whatever the person's is
+  by then.
+- **The People page says when one person and no enrolled voice mean every
+  request is theirs**, with a link to enrol them or to add someone else.
+
 ## 0.3.0
 
 - **The app's language is picked on its Configuration tab, and it has no

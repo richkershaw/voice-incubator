@@ -1,0 +1,70 @@
+# Voice Incubator
+
+Voice satellites with commands you make yourself, recognized on this machine.
+A command says what to listen for, where, and what happens in Home Assistant:
+speak a response, run a script, activate a scene, or run an action. It hears
+and speaks one language: English, German, Spanish, French, Italian, Dutch,
+Polish, Russian or Ukrainian (the web UI is in English).
+
+**The guide is in [OHF-Voice/integration-voice-incubator](https://github.com/OHF-Voice/integration-voice-incubator/blob/main/GUIDE.md):**
+everything the app does, page by page.
+
+## Getting started
+
+1. **Pick its language** on the app's Configuration tab: it won't start
+   without one.
+2. **Start the app.** The first time, it downloads its speech models -- about
+   530 MB in English: Parakeet (speech), EmbeddingGemma 2 (meaning), GLiNER
+   (the command fallback) and Piper's Kristin (its voice); in another
+   language, NVIDIA's FastConformer for it and a Piper voice in it, without
+   GLiNER -- into its own storage, and its page shows how far it got. Later
+   starts and updates keep them.
+3. **Install the Voice Incubator integration** with [HACS](https://hacs.xyz): add
+   `https://github.com/OHF-Voice/integration-voice-incubator` as a custom repository of type
+   Integration, download **Voice Incubator**, and restart Home Assistant. The app
+   sets it up the next time it connects. It gives each satellite a device and
+   its timers, and runs Assist's intents for the app.
+4. **Flash a Home Assistant Voice Preview Edition** from its
+   [install page](https://ohf-voice.github.io/firmware-voice-incubator/voice-pe/)
+   and give it your Wi-Fi. The app finds it on the network and connects to it.
+
+Then open **Voice Incubator** in the sidebar to make commands, name things, set up
+satellites and look at sessions.
+
+## From Voice Labs
+
+Voice Incubator was Voice Labs. To Home Assistant it is a new app, with
+storage of its own: what Voice Labs kept -- commands, names, settings, people,
+voices, custom wake words -- doesn't come along by itself. Its integration is
+new too: see the guide's
+[From Voice Labs](https://github.com/OHF-Voice/integration-voice-incubator/blob/main/GUIDE.md#from-voice-labs).
+Satellites with the Voice Labs firmware are found as before.
+
+## Home Assistant's voice assistants
+
+The app is also a Wyoming service, which Home Assistant finds (**Settings >
+Devices & services**, Discovered). Add it, and its speech-to-text,
+text-to-speech and conversation agent can be picked for any voice assistant
+(**Settings > Voice assistants**): for satellites that aren't the app's, and
+for what's typed in Assist.
+
+- **Speech-to-text** is the app's own (Settings), and writes what it heard as
+  the command it heard, with your names spelled as on the Names page.
+- **Text-to-speech** is Piper, with every voice it has: each is downloaded
+  the first time it is used, and removed after 30 days unused.
+- **The conversation agent** is your commands, skills and conversation agent,
+  in the satellite's area. A command that would beep says its brief response
+  instead, and a timer is set by Home Assistant's own agent, on the satellite.
+
+## Options
+
+- `wake_cutoff`: the satellite detector's probability cutoff for the
+  checked wake words (default: each its own -- 0.4 for Okay Nabu, 0.5 for Hey
+  Jarvis, 0.7 for Hey Mycroft). Every detection of these is verified again
+  here, so it can be generous. A cutoff set on the Wake words page wins.
+- `speaker_threshold`: how closely a voice must match to be identified.
+- `silence_seconds`: silence that ends a command. **Silence to end** in
+  Settings -- the whole home's, an area's or a satellite's -- wins.
+- `wyoming_port`: where Home Assistant's voice assistants reach the app
+  (default 10800); 0 for nowhere.
+- `debug_logging`: verbose logs.

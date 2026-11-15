@@ -102,13 +102,13 @@ everything it does, page by page.
 ### Standalone
 
 Without Home Assistant's app store, it runs as a container:
-`ghcr.io/ohf-voice/voice-incubator` (amd64 and aarch64), given Home Assistant's
+`ghcr.io/richkershaw/voice-incubator` (amd64 and aarch64), given Home Assistant's
 address and a long-lived access token.
 
 ```bash
 docker run -d --name voice-incubator --network host \
   -e HASS_URL=http://homeassistant.local:8123 -e HASS_TOKEN=... \
-  -v voice-incubator:/data ghcr.io/ohf-voice/voice-incubator
+  -v voice-incubator:/data ghcr.io/richkershaw/voice-incubator
 ```
 
 The web UI (8099) and Wyoming (10800) listen on every address the container
@@ -119,6 +119,27 @@ nothing more -- add it to Home Assistant as a Wyoming Protocol integration --
 but finding the satellites does: they're found by mDNS, which a container's
 own network doesn't carry (`--host` reaches one without it). More options go
 after the image name.
+
+### As a Home Assistant app, from this fork
+
+This repository is its own app repository. Add
+`https://github.com/richkershaw/voice-incubator` in **Settings > Apps >
+Install app > ⋮ > Repositories**, then install **Voice Incubator**. It pulls
+`ghcr.io/richkershaw/voice-incubator-app`, which `.github/workflows/app.yml`
+builds from `app/` for amd64 and aarch64: on a published release whose tag is
+`app/config.yaml`'s version, or by hand. Make the package public in the
+fork's package settings once, or Home Assistant can't pull it. Bump the
+version before a build, or Home Assistant won't see a new one.
+
+To build it on the Home Assistant machine instead, write the source tarball
+and copy the `app` folder into the host's `addons` share as
+`voice_incubator`; then remove `image:` from its `config.yaml` (otherwise
+Home Assistant pulls the published one), check for updates, and install it
+from **Local apps**.
+
+```bash
+scripts/app_source.sh app
+```
 
 ### From source
 
@@ -173,7 +194,6 @@ Only with the Voice Incubator firmware:
 - [DESIGN.md](DESIGN.md): how it works, what was measured to get it there,
   and how to work on it.
 - [CHANGELOG.md](CHANGELOG.md): what changed, version by version.
-- [The app](https://github.com/OHF-Voice/app-voice-incubator): the Home
-  Assistant app, built from a release of this source.
+- [The app](app/): the Home Assistant app, built from this source.
 - [The firmware](https://github.com/OHF-Voice/firmware-voice-incubator), and its
   [install page](https://ohf-voice.github.io/firmware-voice-incubator/voice-pe/).

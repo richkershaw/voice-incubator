@@ -1,7 +1,7 @@
 # The standalone image, from Debian itself, started directly: see README.md,
-# "Standalone". The Home Assistant app's image is built from a release of this
-# source by its own Dockerfile (OHF-Voice/app-voice-incubator), in the same
-# steps: a change here belongs there too.
+# "Standalone". The Home Assistant app's image is app/Dockerfile, from this
+# same source in a tarball (scripts/app_source.sh writes it): a change here
+# belongs there too.
 #
 # What is compiled -- adapt-ctc's Viterbi, the wake verifier's decoder,
 # FluidSynth -- and the Python packages are built in the first stage, so the

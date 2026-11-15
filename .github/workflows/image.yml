@@ -16,7 +16,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ghcr.io/ohf-voice/voice-incubator
+  IMAGE: ghcr.io/richkershaw/voice-incubator
 
 jobs:
   build:
