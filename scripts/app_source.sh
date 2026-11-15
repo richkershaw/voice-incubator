@@ -7,7 +7,7 @@
 # Uncommitted changes are not in it.
 set -euo pipefail
 
-app="${1:?usage: scripts/app_source.sh <the app folder: app here, or an app-voice-incubator checkout's voice_incubator>}"
+app="${1:?usage: scripts/app_source.sh <the app folder: app here, or the voice_incubator folder of an app-voice-incubator checkout>}"
 app="${app%/}"
 test -f "${app}/config.yaml" || { echo "${app} has no config.yaml: not the app folder" >&2; exit 1; }
 
