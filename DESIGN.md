@@ -2172,7 +2172,8 @@ command fallback -- a question still gets an answer:
    (`people.json` `agent`, the People page) has its own conversation there, so
    neither is sent the other's. A sentence goes to the agent of the person
    speaking -- theirs, else the home's (`VoiceIncubatorApp.agent_for`); one
-   typed in Try has no speaker, so it goes to the home's. Each is kept for
+   typed in Try has no speaker unless one is picked there, so it goes to the
+   home's (or the picked person's). Each is kept for
    `agent_keep_minutes` (5, the Voice PE's
    `conversation_timeout`) after the agent's last answer there. An LLM's
    answer is streamed through the integration

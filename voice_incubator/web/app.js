@@ -2505,6 +2505,7 @@ async function pageSatellite(key, opened) {
   const s = sats.find((x) => x.key === key);
   if (!s) { fill($main, h("a", { href: "#/home" }, "← Home"), errorBox(`No satellite ${key}`)); return; }
   const areas = await areaLabels();
+  const everyone = await api("GET", "speakers").catch(() => ({ people: [] }));
   const settings = (state.status && state.status.settings) || {};
   const label = (value) => value || "built-in";
 
@@ -2567,15 +2568,19 @@ async function pageSatellite(key, opened) {
     } catch (err) { toast(err.message); }
   };
 
-  // Testing it: a sentence typed, as if said here.
+  // Testing it: a sentence typed, as if said here -- and by whom.
   const input = h("input", { type: "text", class: "grow", placeholder: "turn on the lights" });
+  const who = h("select", { "aria-label": "Speaker" }, h("option", { value: "" }, "Nobody known"),
+    ...(everyone.people || []).map((p) => h("option", { value: p.name }, p.name)));
   const run = h("input", { type: "checkbox" });
   const speak = h("input", { type: "checkbox" });
   const out = h("div");
   async function go() {
     fill(out, h("p", { class: "muted" }, speak.checked ? "Synthesizing and recognizing…" : "Recognizing…"));
     try {
-      const record = await api("POST", "try", { text: input.value, satellite: s.key, run_actions: run.checked, speak: speak.checked });
+      const record = await api("POST", "try", {
+        text: input.value, satellite: s.key, run_actions: run.checked, speak: speak.checked, speaker: who.value || null,
+      });
       fill(out, h("div", { class: "panel inset" }, sessionGlance(record), pipeline(record), h("p", { class: "small" }, h("a", { href: `#/session/${record.id}` }, "Open its session"))));
     } catch (err) { fill(out, errorBox(err)); }
   }
@@ -2613,8 +2618,9 @@ async function pageSatellite(key, opened) {
             " · ", h("a", { href: "#/wake" }, "change")),
           s.timers && s.timers.length ? [h("div", {}, "Timers"), h("div", {}, s.timers.map((t) => `${t.name || "unnamed"} (${t.status}, ${Math.round(t.remaining)} s left)`).join(" · "))] : null))),
     h("div", { class: "panel" },
-      heading("h2", "Test it", "What you type is recognized like a command said here, after the wake word, as if every word had been heard exactly as typed: no speech recognition."),
+      heading("h2", "Test it", "What you type is recognized like a command said here, after the wake word, as if every word had been heard exactly as typed: no speech recognition. Pick a person to see it as if their voice were recognized."),
       h("div", { class: "row" }, input, h("button", { class: "primary", onclick: go }, "Test")),
+      field("As if said by", who, "A person the app takes to be the speaker, as if their voice were recognized: their own conversation agent, and what “my” means. Nobody known: as a guest, and the home's agent."),
       h("label", { class: "small" }, run, "Really run it", hint("Otherwise a dry run: nothing happens in Home Assistant, and the conversation agent isn't asked.")),
       h("label", { class: "small" }, speak, "Say it first", hint("Spoken by the app's voice and recognized from the audio, to test speech recognition too. Synthesized speech is cleaner than a room, so treat a match then as necessary, not sufficient.")),
       out,
@@ -4730,7 +4736,7 @@ function stepGlance(stage) {
       return { title: "Command starts", status: "", line: `at ${num(d.cut, 2)} s${d.phrase ? `, after “${d.phrase}”` : ""}${inTime(d.seconds)}` };
     case "typed":
       if (d.context) return { title: "From Home Assistant", status: "", line: quoted(d.text || "") };
-      return { title: "Typed", status: "", line: `${quoted(d.text || "")}${d.spoken ? ", spoken and heard" : ""}` };
+      return { title: "Typed", status: "", line: `${quoted(d.text || "")}${d.spoken ? ", spoken and heard" : ""}${d.speaker ? `, as ${d.speaker}` : ""}` };
     case "transcribe":
       return { title: "From Home Assistant", status: "", line: `${num(d.seconds, 1)} s to ${d.corrected ? "transcribe" : "transcribe with Parakeet"}` };
     case "transcript":

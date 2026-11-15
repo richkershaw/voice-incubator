@@ -2171,6 +2171,7 @@ class Api:
             bool(body.get("run_actions")),
             bool(body.get("speak")),
             area=str(body.get("area") or "") or None,
+            speaker=str(body.get("speaker") or "") or None,
         )
         return web.json_response(record.to_json(), dumps=_dumps)
 

@@ -862,6 +862,17 @@ async def _scenario(tmp_path: Path) -> None:
             assert home != chatty
             await app.agent.ask(key, "and again", None, "en")
             assert hass.conversations[-1]["conversation_id"] == chatty
+            # A person picked in Test it is the speaker: theirs gets what
+            # nothing understood, as a call from them would.
+            app.store.people["Mike"] = {"agent": "conversation.home_assistant"}
+            record = await app.try_text("who wrote the aeneid", MAC, run_actions=True, speaker="mike")
+            assert next(s for s in record.stages if s["stage"] == "typed")["speaker"] == "Mike"
+            assert next(s for s in record.stages if s["stage"] == "speech")["text"] == (
+                "conversation.home_assistant heard who wrote the aeneid"
+            )
+            response = await http.post("/api/try", json={"text": "hello", "speaker": "Nobody"})
+            assert response.status == 400 and "speaker" in (await response.json())["error"]
+            del app.store.people["Mike"]
             # Home Assistant's own agent has nothing to stream; nor has an
             # integration from before it streamed: asked at once.
             assert (await http.put("/api/settings", json={"agent": "conversation.home_assistant"})).status == 200

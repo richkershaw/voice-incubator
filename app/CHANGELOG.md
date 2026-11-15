@@ -7,6 +7,9 @@
   for the fallback: the trace shows the agent Settings picked, as a real call
   from someone unknown would. Commands typed there still see the only person
   ("add to my list").
+- **Test it can take a person's part.** Pick one there and the sentence is
+  heard as if their voice were recognized: their own conversation agent, and
+  what "my" means. Nobody known, the default, is a guest.
 
 ## 0.3.1
 

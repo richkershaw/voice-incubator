@@ -4108,21 +4108,31 @@ class VoiceIncubatorApp:
 
     async def try_text(
         self, text: str, satellite_key: str | None, run_actions: bool = False, speak: bool = False,
-        area: str | None = None,
+        area: str | None = None, speaker: str | None = None,
     ) -> CallRecord:
         """``text`` as a command said on this satellite (else as on one in
         ``area``): as if heard word for word (no speech recognition), or
         (``speak``) said by Piper and recognized -- the whole pipeline after
-        the wake word. A typed sentence has no speaker to identify: what
+        the wake word. ``speaker``: a person to take as the speaker, as if
+        their voice were recognized (their own agent, and what "my" means).
+        Without one, a typed sentence has no speaker to identify: what
         nothing understood goes to the home's conversation agent, though
         commands still see the only person, if there is one."""
         if satellite_key:
             satellite = self.satellite(satellite_key)
         else:
             satellite = self.place(area)
+        said_by: str | None = None
+        if speaker:
+            said_by = next((name for name in self.people_names() if name.lower() == speaker.strip().lower()), None)
+            if said_by is None:
+                raise ConfigError(f"speaker: nobody called {speaker}")
+            who = people.speaking(self.store.people, self.voice_names(), said_by)
+        else:
+            who = self.speaking()
         record = self.calls.begin("try", satellite.as_dict())
         record.dry_run = not run_actions
-        record.stage("typed", text=text, spoken=speak)
+        record.stage("typed", text=text, spoken=speak, **({"speaker": said_by} if said_by else {}))
         assert self.engine is not None
         pcm = b""
         if speak:
@@ -4137,11 +4147,10 @@ class VoiceIncubatorApp:
             async with self._model_lock:
                 decision = await asyncio.to_thread(self.engine.recognize_text, text, satellite)
         record.stage("recognition", **decision.to_json(), stt=_stt_json(transcriber))
-        who = self.speaking()
         decision = await self._referring(decision, satellite, record)
         decision = await self._listed(decision, satellite, record)
         speech, outcome, summary = await self._carry_out(
-            decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record, agent_name=None,
+            decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record, agent_name=said_by,
         )
         if isinstance(speech, Streamed):
             speech = await speech.text()
