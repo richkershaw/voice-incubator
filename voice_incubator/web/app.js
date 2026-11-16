@@ -566,6 +566,10 @@ function responsesPanel() {
     try { await api("PUT", "settings", { sounds: e.target.checked }); toast("Saved"); await refreshStatus(); }
     catch (err) { toast(err.message); }
   } });
+  const wakeChime = h("input", { type: "checkbox", checked: !!(state.status && state.status.wake_chime), onchange: async (e) => {
+    try { await api("PUT", "settings", { wake_chime: e.target.checked }); toast("Saved"); await refreshStatus(); }
+    catch (err) { toast(err.message); }
+  } });
   const instrument = h("select", { onchange: async (e) => {
     try {
       await api("PUT", "settings", { instrument: e.target.value });
@@ -591,12 +595,13 @@ function responsesPanel() {
     catch (err) { toast(err.message); }
   } }, Object.entries(AT_MOST).map(([value, label]) => h("option", { value, selected: (verbosity.at_most || "") === value }, label)));
   return h("div", { class: "panel" },
-    withOwn(heading("h2", "Responses", "Each command says as much as its own level when it's done: a beep, a brief fixed sentence (“Turned on the lights.”), a specific one (“Turned on the lights in the Kitchen.”) or a verbose one (“Turned on Ceiling and Lamp in the Kitchen.”). Lights beep; timers, locks and lists say what they did. Set it on the command's page."), ["sounds", "instrument", "pitch", "at_most"]),
+    withOwn(heading("h2", "Responses", "Each command says as much as its own level when it's done: a beep, a brief fixed sentence (“Turned on the lights.”), a specific one (“Turned on the lights in the Kitchen.”) or a verbose one (“Turned on Ceiling and Lamp in the Kitchen.”). Lights beep; timers, locks and lists say what they did. Set it on the command's page."), ["sounds", "wake_chime", "instrument", "pitch", "at_most"]),
     h("div", { class: "row", style: "align-items:flex-start" },
       field("A beep out of sight says", select, "A beep is enough where you can see it happen: in the satellite's own area. Somewhere else — another area, a floor, a device in no area — a command that beeps says this instead. Home Assistant's own says the brief one."),
       field("Response Level", atMost, "No command says more than this, whatever its own level; a question still answers. An area may have its own.")),
     h("div", { class: "row" },
       h("label", {}, sounds, "Sounds", hint("A sound the moment a command ends, another before saying it wasn't understood or went wrong, another as the conversation agent is asked, and another when the microphone opens for an answer.")),
+      h("label", {}, wakeChime, "Chime when the wake word is heard", hint("A short tone once the wake word has been checked, for a satellite whose ring isn't in sight. It plays over the start of the command, since the check takes a moment. Off unless turned on.")),
       field("Instrument", instrument, "What the sounds, the beep when a command is done, and a timer's ring are played on."),
       field("Pitch", h("div", { class: "row" }, pitch, tryButton(instrument, pitch)), "The note the sounds and the ring start from.")));
 }
@@ -5280,6 +5285,9 @@ function areaSettingsPanel(area) {
       ["sounds", "Sounds", "responses", status.sounds !== false, (v) => (v ? "On" : "Off"),
         (v, onChange) => select([["true", "On"], ["false", "Off"]], String(v), (x) => onChange(x === "true")),
         "A sound the moment a command ends, another before saying it wasn't understood or went wrong, and another as the conversation agent is asked."],
+      ["wake_chime", "Wake chime", "responses", status.wake_chime === true, (v) => (v ? "On" : "Off"),
+        (v, onChange) => select([["true", "On"], ["false", "Off"]], String(v), (x) => onChange(x === "true")),
+        "A short tone once the wake word has been checked, for when the ring isn't in sight. It plays over the start of the command."],
       ["instrument", "Instrument", "responses", status.instrument, (v) => ((instruments.find((i) => i.id === v) || {}).name || v),
         (v, onChange) => {
           const chosen = h("select", { "aria-label": "Instrument", onchange: (e) => onChange(e.target.value) }, instrumentOptions(v));

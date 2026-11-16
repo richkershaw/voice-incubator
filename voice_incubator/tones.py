@@ -1,5 +1,6 @@
 """Short sounds the app makes itself, at the satellites' rate: the chime before
-an announcement, and the intercom's tones as it connects and ends."""
+an announcement, the tone once a wake word has been checked, and the
+intercom's tones as it connects and ends."""
 
 from __future__ import annotations
 
@@ -24,6 +25,10 @@ def bell(notes: list[float], note_s: float = 0.22, gap_s: float = 0.03, level: f
 
 CHIME = bell([659.25, 523.25], note_s=0.4)
 """Before an announcement: ding, dong."""
+
+WAKE = bell([880.0], note_s=0.13)
+"""Once the wake word has been checked: one short note, for a satellite whose
+ring isn't in sight. Short, because the command is usually under way."""
 
 CONNECTED = bell([523.25, 783.99])
 """The intercom connects: up."""

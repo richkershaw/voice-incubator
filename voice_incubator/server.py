@@ -100,6 +100,9 @@ HA Green): a call or an edit that starts meanwhile waits no longer."""
 # The microWakeWord model the satellite listens with while a timer rings.
 STOP_MODEL = STOP
 
+PRESS_TO_TALK = "manual"
+"""CALL_START's ``wake_word`` for the satellite's button: not a wake word."""
+
 # Outside a call, how far audio may run ahead of the device playing it: enough
 # to ride out network jitter, little enough that a call cutting in is heard at
 # once.
@@ -2766,14 +2769,20 @@ class VoiceIncubatorApp:
         self._place_split(call, verdict)
         self._start_kaldi(call, kaldi_mode.CALL, 0)
         wake = bytes(call.audio[warm_start(call.split_bytes, call.wake_start) : call.split_bytes])
-        await self._start_stt(session, call)
         call.endpointer = Endpointer(self.end_of_speech(session.satellite), gain=vad_gain(wake), warm=wake)
         # Someone else talking ends the command, once the speaker is
         # identified: when that is on, with profiles to identify them by.
         call.endpointer.watch(call.endpointer.settings.end_on_other_voice and self.identifies())
         call.command += bytes(call.audio[call.split_bytes :])
+        ended = call.endpointer.process(bytes(call.command)) and not call.finished
+        if not ended:
+            # The wake word is checked and the command is still being said:
+            # say it now, rather than after what follows takes its time. Said
+            # at the command's end, it is the "heard" sound's job.
+            await self._wake_chime(session, call)
+        await self._start_stt(session, call)
         await self._event(session, "listening", stage="listening")
-        if call.endpointer.process(bytes(call.command)) and not call.finished:
+        if ended:
             self._command_ended(session, call)
         else:
             self._check_speaker_due(session, call)
@@ -2982,11 +2991,9 @@ class VoiceIncubatorApp:
         """Recognize the command and do it. Whatever goes wrong, the call is
         answered and hung up rather than left open on the satellite. The
         heard sound plays the moment the command ended."""
-        satellite = self.satellite(session.satellite)
-        here = satellite.settings
-        if here["sounds"] and not satellite.night:
-            call.cues = Cues(self, session, here["instrument"], here["pitch"])
-            await call.cues.sound("heard")
+        cues = self._cues(session, call)
+        if cues is not None:
+            await cues.sound("heard")
         try:
             await self._respond_unguarded(session, call)
         except Exception as err:  # noqa: BLE001 - the satellite must hear back
@@ -4817,6 +4824,31 @@ class VoiceIncubatorApp:
         if call is not None and call.cues is not None:
             await call.cues.sound(sound)
 
+    def _cues(self, session: Session, call: Call) -> Cues | None:
+        """The call's sounds (``Cues``): its own, or made now -- none when the
+        satellite has none (``sounds``), or at night. One stream however many
+        sounds, opened by the first, ended with the reply."""
+        satellite = self.satellite(session.satellite)
+        here = satellite.settings
+        if not here["sounds"] or satellite.night:
+            return None
+        if call.cues is None:
+            call.cues = Cues(self, session, here["instrument"], here["pitch"])
+        return call.cues
+
+    async def _wake_chime(self, session: Session, call: Call) -> None:
+        """The short tone that says the wake word was heard (``wake_chime``):
+        once the app has checked it, and the command is still being said --
+        after it, the "heard" sound says so instead. Not for the button."""
+        if session.call is not call or call.finished or call.wake_word == PRESS_TO_TALK:
+            return
+        if not self.satellite(session.satellite).settings["wake_chime"]:
+            return
+        cues = self._cues(session, call)
+        if cues is not None:
+            await cues.play(tones.WAKE)
+            _LOGGER.debug("[%s] Wake chime after %r", session, call.wake_word)
+
     def _wake_json(self, word_id: str | None) -> dict[str, Any]:
         """A call's wake word as commands see it (``wake_word``): its ``id``,
         ``name`` and ``phrase`` -- the phrase it was trained on, for "Okay
@@ -4947,6 +4979,12 @@ class VoiceIncubatorApp:
         before, ``thinking_sound`` false). An area may have its own
         (voice_incubator/areas.py)."""
         return areas.whole_sounds(self.store.settings)
+
+    def wake_chime(self) -> bool:
+        """settings.json ``wake_chime``: a short tone once a wake word has been
+        checked, off unless true. An area may have its own
+        (voice_incubator/areas.py)."""
+        return areas.whole_wake_chime(self.store.settings)
 
     async def _hang_up(self, session: Session, reason: str, listen: FollowUp | None = None) -> None:
         """End the call -- and, ``listen``, have the satellite start the one

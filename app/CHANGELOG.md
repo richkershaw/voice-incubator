@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4
+
+- **An optional chime when the wake word is heard.** Turn it on in Settings >
+  Responses, or for one area on its page: a short tone once the app has
+  checked the wake word, for a satellite whose ring isn't in sight. A false
+  wake word stays silent, the button stays silent, and night mode keeps it
+  quiet with the rest of the sounds.
+
 ## 0.3.3
 
 - **The app calls itself Voice Incubator (richkershaw's fork)**, in the app

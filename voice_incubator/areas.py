@@ -19,7 +19,8 @@ What an area may have its own of (``KEYS``):
   satellites, which have none the app knows of, play on. The whole home has
   none: an area without one plays on whichever player is there.
 - ``voice`` (and its ``speaker``): Piper's voice, which replies are said in.
-- ``sounds`` (false: none), ``instrument`` and ``pitch``: the call's sounds.
+- ``sounds`` (false: none), ``instrument`` and ``pitch``: the call's sounds;
+  and ``wake_chime``: a short tone once a wake word here has been checked.
 - ``at_most``: the most a command says, ``brief`` or ``beep`` (the whole
   home's may have one too); a question still answers.
 - ``silence_seconds``: silence that ends a command (a satellite's own wins).
@@ -42,7 +43,10 @@ HOME = ("climate", "shopping_list", "todo_list")
 """The home's own things an area may have its own of."""
 AT_MOST = ("brief", "beep")
 """The most a command may say, where it is capped."""
-KEYS = (*HOME, "music_player", "voice", "speaker", "sounds", "instrument", "pitch", "at_most", "silence_seconds")
+KEYS = (
+    *HOME, "music_player", "voice", "speaker", "sounds", "instrument", "pitch", "wake_chime", "at_most",
+    "silence_seconds",
+)
 
 
 def own(settings: dict[str, Any], area: str | None) -> dict[str, Any]:
@@ -63,6 +67,11 @@ def whole_sounds(settings: dict[str, Any]) -> bool:
     return settings.get("sounds", settings.get("thinking_sound")) is not False
 
 
+def whole_wake_chime(settings: dict[str, Any]) -> bool:
+    """The whole home's ``wake_chime``: off unless true."""
+    return settings.get("wake_chime") is True
+
+
 def effective(settings: dict[str, Any], area: str | None) -> dict[str, Any]:
     """What a satellite in ``area`` uses: the area's own, else the whole
     home's. ``voice``/``speaker`` and ``silence_seconds`` are only the
@@ -78,6 +87,9 @@ def effective(settings: dict[str, Any], area: str | None) -> dict[str, Any]:
         "sounds": mine["sounds"] if isinstance(mine.get("sounds"), bool) else whole_sounds(settings),
         "instrument": mine.get("instrument") or settings.get("instrument"),
         "pitch": mine.get("pitch") or settings.get("pitch"),
+        "wake_chime": (
+            mine["wake_chime"] if isinstance(mine.get("wake_chime"), bool) else whole_wake_chime(settings)
+        ),
         "at_most": at_most if at_most in AT_MOST else None,
         "silence_seconds": mine.get("silence_seconds"),
         "music_player": mine.get("music_player"),
@@ -151,6 +163,9 @@ def put(settings: dict[str, Any], area: str, values: dict[str, Any] | None, voic
         elif key == "sounds":
             if not isinstance(value, bool):
                 raise ConfigError("sounds: true or false")
+        elif key == "wake_chime":
+            if not isinstance(value, bool):
+                raise ConfigError("wake_chime: true or false")
         elif key == "instrument":
             if value not in instruments:
                 raise ConfigError(f"instrument: no instrument {value!r}")

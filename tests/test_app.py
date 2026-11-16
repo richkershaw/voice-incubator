@@ -15,7 +15,7 @@ import aiohttp
 import numpy as np
 import pytest
 
-from voice_incubator import people as people_mod
+from voice_incubator import people as people_mod, tones
 from voice_incubator.agent import Streamed, conversation_key
 from voice_incubator.instruments import Instruments
 from voice_incubator.server import Options, VoiceIncubatorApp
@@ -1272,6 +1272,75 @@ async def _night(tmp_path):
             assert hass.night == {"kitchen": False} and not app.satellite(MAC).night
             assert len(await call("call-15788.wav", "done")) > 0
             assert (await http.put("/api/areas/office/night", json={"on": True})).status == 404
+    finally:
+        runner.cancel()
+        await app.stop()
+        satellite_server.close()
+        hass_server.close()
+
+
+def test_the_wake_chime(tmp_path):
+    asyncio.run(_wake_chime(tmp_path))
+
+
+async def _wake_chime(tmp_path):
+    """settings.json wake_chime: one short tone once the wake word has been
+    checked, before the command's own sounds and its reply in the same stream;
+    off unless turned on, not for the button, and none at night."""
+    hass, hass_server = await fake_hass.serve()
+    hass_port = hass_server.sockets[0].getsockname()[1]
+    satellite = FakeSatellite(mac=":".join(MAC[i : i + 2] for i in range(0, 12, 2)), speed=1.0)
+    satellite_server = await serve(satellite)
+    hass.device_areas[f"device-{MAC}"] = "kitchen"
+    hass.night = {"kitchen": False}
+    (tmp_path / "commands.yaml").write_text(COMMANDS)
+    http_port = free_port()
+    app = VoiceIncubatorApp(Options(
+        host="127.0.0.1", port=satellite_server.sockets[0].getsockname()[1], hass_url=f"http://127.0.0.1:{hass_port}",
+        hass_token=fake_hass.TOKEN, data_dir=tmp_path, http_port=http_port, speaker_profiles=tmp_path / "speakers.json",
+        threads=4,
+    ))
+    await app.start()
+    runner = asyncio.ensure_future(app.run_forever())
+
+    async def put(body: dict) -> int:
+        async with aiohttp.ClientSession(f"http://127.0.0.1:{http_port}") as http:
+            async with http.put("/api/settings", json=body) as response:
+                return response.status
+
+    async def play(wake_word: str = "okay_nabu") -> bytes:
+        """What the satellite played for one call, from its start."""
+        start = len(satellite.heard)
+        assert await satellite.call(read_call(CALLS / "call-15788.wav"), wake_word=wake_word) == "done"
+        return bytes(satellite.heard[start:])
+
+    try:
+        await asyncio.wait_for(satellite.ready.wait(), 30)
+        # Off unless turned on.
+        assert app.wake_chime() is False
+        assert not (await play()).startswith(tones.WAKE)
+        assert await put({"wake_chime": True}) == 200
+        assert app.store.settings["wake_chime"] is True and app.wake_chime()
+        # The tone first, then the sounds and the reply in the same stream.
+        ends = satellite.ends
+        assert (await play()).startswith(tones.WAKE)
+        assert satellite.ends == ends + 1
+        # The button is not a wake word.
+        assert not (await play("manual")).startswith(tones.WAKE)
+        # An area's own, from its page: off here while the whole home's is on.
+        async with aiohttp.ClientSession(f"http://127.0.0.1:{http_port}") as http:
+            async with http.put("/api/areas/kitchen", json={"settings": {"wake_chime": False}}) as response:
+                assert response.status == 200
+        assert app.satellite(MAC).settings["wake_chime"] is False
+        assert not (await play()).startswith(tones.WAKE)
+        async with aiohttp.ClientSession(f"http://127.0.0.1:{http_port}") as http:
+            async with http.put("/api/areas/kitchen", json={"settings": {"wake_chime": None}}) as response:
+                assert response.status == 200
+        assert app.satellite(MAC).settings["wake_chime"] is True
+        # At night: none of the sounds, the tone included.
+        await hass.turn_night("kitchen", True)
+        await wait_for(lambda: app.satellite(MAC).night)
+        assert await play() == b""
     finally:
         runner.cancel()
         await app.stop()

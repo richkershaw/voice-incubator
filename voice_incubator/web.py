@@ -312,6 +312,7 @@ class Api:
                 # and what they and the acknowledgement are played on, from
                 # what note (null: the instrument's own), of which.
                 "sounds": app.sounds(),
+                "wake_chime": app.wake_chime(),
                 "instrument": app.speech.instruments.resolve(app.instrument()) or INSTRUMENT,
                 "pitch": app.pitch(),
                 "instruments": [
@@ -1579,6 +1580,11 @@ class Api:
                 settings["sounds"] = False
             else:
                 settings.pop("sounds", None)  # on unless turned off
+        if "wake_chime" in body:
+            if body["wake_chime"] is True:
+                settings["wake_chime"] = True
+            else:
+                settings.pop("wake_chime", None)  # off unless turned on
         if "at_most" in body:
             value = areas.at_most_value(body["at_most"])
             if value:

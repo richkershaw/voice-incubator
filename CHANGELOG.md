@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **An optional chime when the wake word is heard.** Turn it on in Settings >
+  Responses, or for one area on its page: a short tone once the app has
+  checked the wake word, for a satellite whose ring isn't in sight. It plays
+  over the start of the command, as the check takes a moment; a false wake
+  word stays silent, and so does the button. Night mode keeps it quiet, like
+  the rest of the sounds.
+
 ## 0.3.2
 
 - **A typed Try goes to the home's conversation agent.** A typed sentence has
