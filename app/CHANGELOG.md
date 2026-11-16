@@ -6,6 +6,11 @@
   store, the repository list and its sidebar panel, so it is told apart from
   upstream's app when both repositories are added. Its slug is unchanged
   (`voice_incubator`), so its data and configuration stay where they are.
+- **It brings upstream 0.3.1's fixes**: Silero VAD 3.4.1 for CPUs without
+  AVX2 (enrolling and ending a command no longer crash on older x86 boxes),
+  alarm times as speech-to-text writes them ("5.50", "5-0-1", "7 a.m."),
+  Home Assistant devices with three-part identifiers, and free text keeping
+  its last words.
 
 ## 0.3.2
 
