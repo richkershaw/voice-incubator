@@ -749,14 +749,15 @@ class HomeAssistant:
         device_macs: dict[str, list[str]] = {}
         disabled_satellites: dict[str, str] = {}
         for device in devices or []:
-            for kind, value in device.get("connections") or []:
-                if kind == "mac":
-                    device_macs.setdefault(str(value).lower(), []).append(device["id"])
+            # Integrations may register connections and identifiers with more than two parts.
+            for connection in device.get("connections") or []:
+                if len(connection) >= 2 and connection[0] == "mac":
+                    device_macs.setdefault(str(connection[1]).lower(), []).append(device["id"])
             if device.get("disabled_by"):
                 # The Voice Incubator integration's device: identified by the satellite's key.
-                for domain, identifier in device.get("identifiers") or []:
-                    if domain in INTEGRATION_DOMAINS:
-                        disabled_satellites[str(identifier)] = device["id"]
+                for identifier in device.get("identifiers") or []:
+                    if len(identifier) >= 2 and identifier[0] in INTEGRATION_DOMAINS:
+                        disabled_satellites[str(identifier[1])] = device["id"]
         friendly = {
             s["entity_id"]: s.get("attributes", {}).get("friendly_name") or s["entity_id"]
             for s in states or []

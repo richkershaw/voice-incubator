@@ -10,6 +10,23 @@
 - **Test it can take a person's part.** Pick one there and the sentence is
   heard as if their voice were recognized: their own conversation agent, and
   what "my" means. Nobody known, the default, is a guest.
+- **Enrolling a speaker no longer crashes on older x86 CPUs.** Silero VAD
+  (pysilero-vad 3.4.0) needed AVX2, so on CPUs without it (many Celeron,
+  Atom and Pentium boxes) the app exited with signal 4 as soon as Silero
+  loaded: enrolling, and ending a command. pysilero-vad 3.4.1 picks the
+  best instructions the CPU has when it loads.
+- **Alarms take times as speech-to-text writes them.** "Five fifty" written
+  as 5.50, "five oh one" as 5-0-1 and "five seventeen" as 517 set the alarm
+  for that time; in a reminder they're times after "at" or "by", or before
+  am or pm. "7 a.m." is 7 AM, not 7 PM. Times are said naturally: "5 PM",
+  not "five zero zero P M", and ":07" as "oh seven".
+- **Home Assistant devices with three-part identifiers don't break the
+  connection.** Some integrations register them, which stopped the
+  catalog from loading.
+- **Free text keeps its last words.** Text that ends in "you" keeps it,
+  "announce that I love it" ends on "it", and a "please" after it
+  ("announce dinner is ready please") is left out instead of losing the
+  command.
 
 ## 0.3.1
 

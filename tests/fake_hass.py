@@ -302,6 +302,16 @@ class FakeHass:
                         "model": "Home Assistant Voice",
                         "connections": [],
                     },
+                    {
+                        # Some integrations register identifiers and connections with three parts (#6).
+                        "id": "device-three-part-identifiers",
+                        "area_id": None,
+                        "manufacturer": "Example",
+                        "model": "Three-part identifiers",
+                        "connections": [["zigbee", "00:11:22:33:44:55:66:77", "extra"]],
+                        "identifiers": [["example", "hub", "child-1"]],
+                        "disabled_by": "user",
+                    },
                 ]
                 + [
                     {
