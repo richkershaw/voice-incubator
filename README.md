@@ -124,7 +124,8 @@ after the image name.
 
 This repository is its own app repository. Add
 `https://github.com/richkershaw/voice-incubator` in **Settings > Apps >
-Install app > ⋮ > Repositories**, then install **Voice Incubator**. It pulls
+Install app > ⋮ > Repositories**, then install
+**Voice Incubator (richkershaw's fork)**. It pulls
 `ghcr.io/richkershaw/voice-incubator-app`, which `.github/workflows/app.yml`
 builds from `app/` for amd64 and aarch64: on a published release whose tag is
 `app/config.yaml`'s version, or by hand. Make the package public in the

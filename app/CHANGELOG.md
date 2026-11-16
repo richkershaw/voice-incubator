@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3
+
+- **The app calls itself Voice Incubator (richkershaw's fork)**, in the app
+  store, the repository list and its sidebar panel, so it is told apart from
+  upstream's app when both repositories are added. Its slug is unchanged
+  (`voice_incubator`), so its data and configuration stay where they are.
+
 ## 0.3.2
 
 - **A typed Try goes to the home's conversation agent.** A typed sentence has

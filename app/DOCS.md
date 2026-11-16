@@ -1,4 +1,4 @@
-# Voice Incubator
+# Voice Incubator (richkershaw's fork)
 
 Voice satellites with commands you make yourself, recognized on this machine.
 A command says what to listen for, where, and what happens in Home Assistant:
@@ -28,7 +28,7 @@ everything the app does, page by page.
    [install page](https://ohf-voice.github.io/firmware-voice-incubator/voice-pe/)
    and give it your Wi-Fi. The app finds it on the network and connects to it.
 
-Then open **Voice Incubator** in the sidebar to make commands, name things, set up
+Then open **Voice Incubator (richkershaw's fork)** in the sidebar to make commands, name things, set up
 satellites and look at sessions.
 
 ## From Voice Labs
