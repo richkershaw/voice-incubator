@@ -1,24 +1,29 @@
 # Changelog
 
-## 0.3.4
-
-- **An optional chime when the wake word is heard.** Turn it on in Settings >
-  Responses, or for one area on its page: a short tone once the app has
-  checked the wake word, for a satellite whose ring isn't in sight. A false
-  wake word stays silent, the button stays silent, and night mode keeps it
-  quiet with the rest of the sounds.
-
 ## 0.3.3
 
 - **The app calls itself Voice Incubator (richkershaw's fork)**, in the app
   store, the repository list and its sidebar panel, so it is told apart from
   upstream's app when both repositories are added. Its slug is unchanged
   (`voice_incubator`), so its data and configuration stay where they are.
-- **It brings upstream 0.3.1's fixes**: Silero VAD 3.4.1 for CPUs without
-  AVX2 (enrolling and ending a command no longer crash on older x86 boxes),
-  alarm times as speech-to-text writes them ("5.50", "5-0-1", "7 a.m."),
-  Home Assistant devices with three-part identifiers, and free text keeping
-  its last words.
+- **An optional chime when the wake word is heard.** Turn it on in Settings >
+  Responses, or for one area on its page: a short tone once the app has
+  checked the wake word, for a satellite whose ring isn't in sight. A false
+  wake word stays silent, the button stays silent, and night mode keeps it
+  quiet with the rest of the sounds.
+- **It brings upstream 0.3.1, 0.3.2 and 0.3.3's fixes**: Silero VAD 3.4.1 for
+  CPUs without AVX2 (enrolling and ending a command no longer crash on older
+  x86 boxes), alarm times as speech-to-text writes them ("5.50", "5-0-1",
+  "7 a.m."), Home Assistant devices with three-part identifiers, free text
+  keeping its last words, small boxes no longer running out of memory
+  building the home's sentences, enrolling surviving a cut-off audio frame,
+  satellites staying connected when a weak Wi-Fi link loses their mDNS
+  record, Home Assistant starting after the app being waited for, the app as
+  its own conversation agent no longer asking itself forever, the integration
+  from the Marketplace, a device heard only in its area saying it can only be
+  controlled from there, sentence triggers winning over an area's own
+  commands as good as them, and English's "change the lights to blue" and
+  "what's the time".
 
 ## 0.3.2
 

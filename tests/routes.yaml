@@ -43,6 +43,7 @@ cancel all timers: null
 cancel the 30 minute timer: null
 change the bedroom lamp to 14 percent: null
 change the bedroom lamp to 40 percent: null
+change the time: null
 check fix the gate off my to do list: {"command": "todo_check_mine", "slots": {"item": "fix the gate"}}
 check off call my mom on the to do list: {"command": "todo_check", "slots": {"item": "call my mom"}}
 check off call the plumber on the to do list: {"command": "todo_check", "slots": {"item": "call the plumber"}}
@@ -217,6 +218,7 @@ set the thermostat to 70: {"command": "set_temperature_here", "slots": {"tempera
 set the thermostat to 72 and a half degrees: {"command": "set_temperature_here", "slots": {"temperature": 72.5}}
 set the thermostat to 72.5 degrees: {"command": "set_temperature_here", "slots": {"temperature": 72.5}}
 set the thermostat to heat: {"command": "set_thermostat_mode", "slots": {"mode": "heat"}}
+set the time: null
 set the timer for 50 seconds: null
 set the timer for an hour and a half: null
 set the timer for half an hour: null
@@ -244,6 +246,8 @@ take my passport off my to do list: {"command": "todo_remove_mine", "slots": {"i
 tell me a joke: null
 tell me about the date: {"command": "what_date"}
 tell me the date: {"command": "what_date"}
+tell me the time: {"command": "what_time"}
+tell me what the time is: {"command": "what_time"}
 tell me what time it is right now: {"command": "what_time"}
 tell me what's on my to do list: {"command": "todo_items_mine"}
 thank you: null
@@ -394,8 +398,12 @@ we're out of coffee: null
 what is my name: {"command": "who_am_i"}
 what is on our to do list: {"command": "todo_items"}
 what is the temperature in the living room: null
+what is the time: {"command": "what_time"}
 what time is it: {"command": "what_time"}
+what time is it in the kitchen: null
 what time is it right now: {"command": "what_time"}
+what time was it: null
+what was the time: null
 what's my name: {"command": "who_am_i"}
 what's my schedule: {"command": "my_calendar", "slots": {"entity": ["calendar.family"]}}
 what's on my shopping list: {"command": "shopping_list_items"}
@@ -405,9 +413,16 @@ what's on the to do list: {"command": "todo_items"}
 what's the capital of france: null
 what's the temperature: null
 what's the thermostat set to: {"command": "thermostat"}
+what's the time: {"command": "what_time"}
+what's the time going to be in 45 minutes: null
+what's the time in the kitchen: null
+what's the time now: {"command": "what_time"}
+what's the time right now: {"command": "what_time"}
+what's the timer at: null
 what's today: null
 what's twelve times eight: null
 whats the temperature in the living room: null
+whats the time: {"command": "what_time"}
 whats the weather like in london: null
 whats the weather tomorrow: {"command": "weather_day", "slots": {"day": "tomorrow"}}
 who am i: {"command": "who_am_i"}

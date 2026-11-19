@@ -1,24 +1,51 @@
 # Changelog
 
-## Unreleased
+## 0.3.3
 
-- **An optional chime when the wake word is heard.** Turn it on in Settings >
-  Responses, or for one area on its page: a short tone once the app has
-  checked the wake word, for a satellite whose ring isn't in sight. It plays
-  over the start of the command, as the check takes a moment; a false wake
-  word stays silent, and so does the button. Night mode keeps it quiet, like
-  the rest of the sounds.
+- **Satellites stay connected on a weak Wi-Fi link.** Missed mDNS
+  refreshes expired a satellite's record while it was still there, which
+  ended its session; nothing reconnected until it was found again, ~50
+  minutes in one report. A session now ends only on its own connection and
+  keeps reconnecting to the last address it had, and a satellite whose
+  name got no answer is asked again (#18).
+- **Home Assistant restarting, or starting after the app, is waited for.**
+  The app read it before its integrations were loaded: the integration
+  stayed "not loaded" and the home's sentence triggers were missing until
+  the app was restarted. Now nothing is read until Home Assistant says it
+  has started (#15, #1).
+- **Voice Incubator as its own conversation agent doesn't loop.** With the
+  fallback agent set to Voice Incubator's Wyoming agent in Home Assistant,
+  a sentence it didn't know was asked of itself again and again. It's now
+  said "Sorry, I didn't understand that" once, with a warning in the log to
+  choose another agent (#9).
+- **The integration is installed from the Marketplace,** which HACS became
+  in Home Assistant 2026.11, with no restart (#12).
+- **The integration notice is shown once,** its state in plain words ("is
+  not loaded in Home Assistant", not "not_loaded").
+- **A device heard only in its area, said with that area elsewhere, says
+  so:** "the Fan in the Office can only be controlled from there", not
+  "there's no Fan here, only in the Office".
+- **Sentence triggers win over an area's own commands as good as them,** as
+  Home Assistant runs a trigger before its intents.
+- **English:** "change the lights to blue" sets the color and color
+  temperature; "what's the time" and "tell me the time" tell it, like the
+  date.
 
 ## 0.3.2
 
-- **A typed Try goes to the home's conversation agent.** A typed sentence has
-  no speaker to identify, so a one-person home is no longer taken to be them
-  for the fallback: the trace shows the agent Settings picked, as a real call
-  from someone unknown would. Commands typed there still see the only person
-  ("add to my list").
-- **Test it can take a person's part.** Pick one there and the sentence is
-  heard as if their voice were recognized: their own conversation agent, and
-  what "my" means. Nobody known, the default, is a guest.
+- **Small boxes don't run out of memory building the home's sentences.**
+  Every new sentence was embedded in one run of the model, and a run's
+  memory grows with its size: 300 sentences added 713 MB, which got the
+  app killed (signal 9) on an HA Blue right after loading embeddings. They
+  now go 16 at a time.
+- **Enrolling a speaker doesn't fail on a cut-off audio frame.** With its
+  outgoing buffer nearly full, a device could end a frame halfway through
+  a sample. Enrollment then failed with "buffer size must be a multiple of
+  element size", and the rest of the audio was read a byte off. The half
+  sample is now joined to the next frame.
+
+## 0.3.1
+
 - **Enrolling a speaker no longer crashes on older x86 CPUs.** Silero VAD
   (pysilero-vad 3.4.0) needed AVX2, so on CPUs without it (many Celeron,
   Atom and Pentium boxes) the app exited with signal 4 as soon as Silero
@@ -36,19 +63,6 @@
   "announce that I love it" ends on "it", and a "please" after it
   ("announce dinner is ready please") is left out instead of losing the
   command.
-
-## 0.3.1
-
-- **Each person can have their own conversation agent, and a voice for its
-  answers.** On the People page a person picks an agent (or keeps the home's
-  from Settings) and the voice its answers are said in. What no command,
-  skill or step understood goes to the agent of the person speaking.
-- **An agent's conversations are kept per area and agent.** Two agents in one
-  room are never sent each other's `conversation_id`, and an answer to a
-  question an agent asked goes back to that agent, whatever the person's is
-  by then.
-- **The People page says when one person and no enrolled voice mean every
-  request is theirs**, with a link to enrol them or to add someone else.
 
 ## 0.3.0
 
@@ -654,9 +668,8 @@
   holiday": "No, Christmas is in 55 days.", "No, Halloween was yesterday."),
   and a holiday that is today is "It's today." -- not "It's 0 days." Under a
   week, "how many weeks until" says the days.
-- **The image is built from this folder alone.** wyoming-wake-kaldi (the
-  wake verifier, with its resident decoder's source), microWakeWord and
-  sentence-stream are vendored beside `voice_labs/`. The speaker model, the
+- **The image is built from this folder alone.** The wake verifier (with
+  its resident decoder's source), microWakeWord and sentence-stream sit beside `voice_labs/`. The speaker model, the
   microWakeWord models, and the verifier's Kaldi model and tools are fetched
   as the image is built, from pinned revisions of
   [rhasspy/voice-labs-models](https://huggingface.co/rhasspy/voice-labs-models)

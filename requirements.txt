@@ -1,5 +1,5 @@
-# Runtime. wyoming-wake-kaldi, sentence-stream and microWakeWord are vendored
-# next to voice_incubator (wyoming_wake_kaldi/, sentence_stream/, microwakeword/).
+# Runtime. The wake verifier, sentence-stream and microWakeWord sit next to
+# voice_incubator (wyoming_wake_kaldi/, sentence_stream/, microwakeword/).
 aiohttp>=3.9
 # Home Assistant's sentence triggers, read and matched as it does (voice_incubator/triggers.py).
 hassil>=3.12,<4
