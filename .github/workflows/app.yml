@@ -4,9 +4,14 @@
 # from this repository: the version app/config.yaml says, its tag matching a
 # published release; run by hand, the same version tagged dev as well.
 #
+# That version is upstream's release number with the commit appended,
+# "0.3.3-8dfa674", which .github/workflows/version.yml writes after each push
+# to main: Home Assistant reads the string from the repository, so every
+# commit is a version it can install, and the number stays upstream's.
+#
 # The app is built from this checkout's source: scripts/app_source.sh writes
-# app/voice-incubator.tar.gz, which app/Dockerfile unpacks. Bump the version
-# in app/config.yaml before a build, or Home Assistant won't see a new one.
+# app/voice-incubator.tar.gz, which app/Dockerfile unpacks. Run this once the
+# App version workflow has stamped the commit it builds.
 name: App image
 
 on:
@@ -85,8 +90,9 @@ jobs:
           fi
 
       # Home Assistant asks for the image tagged with config.yaml's version. A
-      # release's tag must be that version; run by hand, the version is built
-      # as it stands, and tagged dev too.
+      # release's tag is the number before the commit ("v0.3.3" for
+      # "0.3.3-8dfa674"); run by hand, the version is built as it stands, and
+      # tagged dev too.
       - name: Gather version
         id: release
         env:
@@ -97,8 +103,9 @@ jobs:
           version="${CONFIG_VERSION}"
           if [[ "${EVENT_NAME}" == "release" ]]; then
             tag="${TAG_NAME#v}"
-            if [[ "${tag}" != "${version}" ]]; then
-              echo "::error::Release ${TAG_NAME} is not config.yaml's version ${version}"
+            base="${version%%-*}"
+            if [[ "${tag}" != "${base}" ]]; then
+              echo "::error::Release ${TAG_NAME} is not the release ${base} config.yaml builds"
               exit 1
             fi
             echo "image_tag=latest" >> "$GITHUB_OUTPUT"

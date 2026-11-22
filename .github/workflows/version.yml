@@ -1,0 +1,60 @@
+---
+# The app's version, written after each push to main: app/config.yaml says
+# upstream's release number with the commit appended, "0.3.3-8dfa674".
+# Home Assistant reads that string from this repository and offers an update
+# whenever it changes, so every commit can be installed while the number
+# before the dash stays upstream's (voice_incubator/__init__.py).
+#
+# A push made with GITHUB_TOKEN starts no workflow, so the commit this makes
+# does not run it again.
+name: App version
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: app-version
+  cancel-in-progress: false
+
+jobs:
+  stamp:
+    name: Write the app's version
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+
+      - name: Version the commit
+        run: |
+          if [[ "$(git log -1 --format=%s)" == "App: version "* ]]; then
+            echo "The last commit is the version itself: nothing to do"
+            exit 0
+          fi
+          ./scripts/app_version.sh app
+          version="$(sed -n 's/^version: \(.*\)$/\1/p' app/config.yaml)"
+          if git diff --quiet -- app/config.yaml; then
+            echo "app/config.yaml already says ${version}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "App: version ${version} [skip ci]" -- app/config.yaml
+          for attempt in 1 2 3; do
+            if git push origin main; then
+              echo "app/config.yaml now says ${version}"
+              exit 0
+            fi
+            echo "Push refused; rebasing on main and trying again"
+            git pull --rebase --autostash origin main
+          done
+          echo "::error::Could not push the version after three attempts"
+          exit 1

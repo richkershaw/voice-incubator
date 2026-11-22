@@ -1,5 +1,9 @@
 # Changelog
 
+Fork builds are numbered upstream's release with the commit appended:
+`0.3.3-8dfa674`. The number before the dash is upstream's release; the rest is
+the commit the build came from.
+
 ## 0.3.3
 
 - **The app calls itself Voice Incubator (richkershaw's fork)**, in the app
