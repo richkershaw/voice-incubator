@@ -13,5 +13,3 @@
 # Python caches (apps-experimental's root ignored them before).
 __pycache__/
 .mypy_cache/
-# The app image's source tarball, which scripts/app_source.sh writes.
-/app/voice-incubator.tar.gz

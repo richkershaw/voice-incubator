@@ -1,0 +1,2 @@
+# The app image's source tarball, which scripts/app_source.sh writes.
+voice-incubator.tar.gz
