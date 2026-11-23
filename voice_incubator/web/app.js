@@ -2578,7 +2578,7 @@ async function pageSatellite(key, opened) {
 
   // Testing it: a sentence typed, as if said here -- and by whom.
   const input = h("input", { type: "text", class: "grow", placeholder: "turn on the lights" });
-  const who = h("select", { "aria-label": "Speaker" }, h("option", { value: "" }, "Nobody known"),
+  const who = h("select", { "aria-label": "Speaker" }, h("option", { value: "" }, "Nobody picked"),
     ...(everyone.people || []).map((p) => h("option", { value: p.name }, p.name)));
   const run = h("input", { type: "checkbox" });
   const speak = h("input", { type: "checkbox" });
@@ -2628,7 +2628,7 @@ async function pageSatellite(key, opened) {
     h("div", { class: "panel" },
       heading("h2", "Test it", "What you type is recognized like a command said here, after the wake word, as if every word had been heard exactly as typed: no speech recognition. Pick a person to see it as if their voice were recognized."),
       h("div", { class: "row" }, input, h("button", { class: "primary", onclick: go }, "Test")),
-      field("As if said by", who, "A person the app takes to be the speaker, as if their voice were recognized: their own conversation agent, and what “my” means. Nobody known: as a guest, and the home's agent."),
+      field("As if said by", who, "Taken to be the speaker, as if their voice were recognized: their conversation agent, and what “my” means. Nobody picked: the only person, if there is one."),
       h("label", { class: "small" }, run, "Really run it", hint("Otherwise a dry run: nothing happens in Home Assistant, and the conversation agent isn't asked.")),
       h("label", { class: "small" }, speak, "Say it first", hint("Spoken by the app's voice and recognized from the audio, to test speech recognition too. Synthesized speech is cleaner than a room, so treat a match then as necessary, not sufficient.")),
       out,
@@ -4095,15 +4095,19 @@ async function pagePerson(name) {
     h("option", { value: "", selected: !own.agent }, "The home's (Settings)"),
     (agents.agents || []).map((a) => h("option", { value: a.id, selected: own.agent === a.id }, a.name)),
     own.agent && !(agents.agents || []).some((a) => a.id === own.agent) ? h("option", { value: own.agent, selected: true }, `${own.agent} (not found)`) : null);
+  // Only for an agent of their own: the home's is said in its own voice.
   const answerVoice = agentVoicePicker(own.agent_voice || {}, "Answer voice",
-    "The agent's answers in a voice of their own. Default: the home's (Settings), or as everything else is said.");
+    "Their agent's answers in a voice of its own. Default: the home's agent's (Settings), else their replies'.");
+  const showVoice = () => { answerVoice.row.hidden = !agent.value; };
+  agent.addEventListener("change", showVoice);
+  showVoice();
   const words = new Set(own.wake_words || []);
   const save = async () => {
     const body = {
       ...own, playlist: playlist.value.trim(),
       tts: tts.value || null, tts_language: tts.value && tts.value !== "builtin" ? languageValue(ttsLanguage, false) : null,
       tts_voice: tts.value && tts.value !== "builtin" && voice.value && voice.value !== "default" ? voice.value : null,
-      agent: agent.value || null, agent_voice: answerVoice.value(),
+      agent: agent.value || null, agent_voice: agent.value ? answerVoice.value() : null,
       wake_words: [...words],
     };
     try {
@@ -4143,9 +4147,9 @@ async function pagePerson(name) {
       heading("h2", "Replies", "Said in this voice when they're speaking."),
       h("div", { class: "row" }, field("Text-to-speech", tts), field("Language", ttsLanguage), field("Voice", voice))),
     h("div", { class: "panel" },
-      heading("h2", "Conversation agent", "What no command, skill or step under “When nothing matches” took, while they're speaking: the home's agent (Settings), unless they have one of their own. Its answers are said in the answer voice."),
+      heading("h2", "Conversation agent", "What no command, skill or step under “When nothing matches” took, while they're speaking: the home's agent (Settings), unless they have one of their own."),
       agents.error ? h("div", { class: "notice warn" }, `Home Assistant's agents could not be listed: ${agents.error}`) : null,
-      field("Agent", agent),
+      h("div", { class: "row" }, h("div", { class: "field" }, agent)),
       answerVoice.row),
     h("div", { class: "panel" },
       heading("h2", "Wake words", "Theirs: it's them when their voice isn't recognized. One trained on their recordings (“Okay Nabu (Mike)”) hears them best."),
@@ -4898,15 +4902,18 @@ function stepDetails(stage) {
   return Object.keys(data).length ? h("div", { class: "small muted" }, Object.entries(data).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ")) : null;
 }
 
-// One step: when (seconds into the session), its icon, its name and how it
-// went; open it for the details. `extra`: more in its details.
-function stepRow(stage, before, extra) {
+// One step: when (seconds into the session and after speech), its icon, its
+// name and how it went; open it for the details.
+function stepRow(stage, before, speechEnd, extra) {
   const glance = stepGlance(stage);
   const status = STATUS[glance.status];
   const at = Number(stage.at) || 0;
   return h("details", { class: `step ${glance.status}` },
     h("summary", {},
-      h("span", { class: "step-at", title: `${num(at - before, 2)} s after the step before` }, `+${at.toFixed(2)} s`),
+      h("span", { class: "step-at" },
+        h("span", { title: `${num(at - before, 2)} s after the step before` }, `+${at.toFixed(2)} s`),
+        Number.isFinite(speechEnd) && Number.isFinite(stage.at) && at >= speechEnd
+          ? h("span", { class: "step-after-speech" }, `+${(at - speechEnd).toFixed(2)} s`) : null),
       h("span", { class: "step-icon" }, icon(STEP_ICONS[stage.stage] || "mdi:circle-medium", "", null)),
       h("span", { class: "step-text" }, h("span", { class: "step-title" }, glance.title), glance.line ? h("span", { class: "step-line" }, glance.line) : null),
       status ? icon(status[0], "step-status", status[1]) : h("span", { class: "step-status" })),
@@ -4919,7 +4926,10 @@ function stepRow(stage, before, extra) {
 // A session's steps, in order. `extras`: more for a step's details, by its name.
 function pipeline(record, extras) {
   const stages = record.stages || [];
-  return h("div", { class: "steps" }, stages.map((stage, i) => stepRow(stage, i ? Number(stages[i - 1].at) || 0 : 0, (extras || {})[stage.stage])));
+  const speechEnd = stageOf(record, "endpoint")?.speech_end_at;
+  return h("div", { class: "steps" },
+    Number.isFinite(speechEnd) ? h("p", { class: "small muted" }, "Top: since session start · Bottom: since speech ended (estimated)") : null,
+    stages.map((stage, i) => stepRow(stage, i ? Number(stages[i - 1].at) || 0 : 0, speechEnd, (extras || {})[stage.stage])));
 }
 
 async function pageSession(id) {

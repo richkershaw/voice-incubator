@@ -1,8 +1,20 @@
 # Changelog
 
 Fork builds are numbered upstream's release with the commit appended:
-`0.3.3-8dfa674`. The number before the dash is upstream's release; the rest is
+`0.3.5-8dfa674`. The number before the dash is upstream's release; the rest is
 the commit the build came from.
+
+## 0.3.5
+
+- **It brings upstream 0.3.5**: each person's own conversation
+  agent and answer voice (contributed from this fork), announcements that
+  need an area, a floor or a whole-house word, replies at 48 kHz on firmware
+  that takes them, the chosen text-to-speech voice on satellites without a
+  media player, satellites dialled at their last address after a restart,
+  and Settings as a page of its own with the app's version shown.
+- **The optional wake-word chime is still here**, which this fork has and
+  upstream doesn't yet: a short tone once the wake word is checked, in
+  Settings > Responses or for one area on its page.
 
 ## 0.3.3
 

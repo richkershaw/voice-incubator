@@ -27,7 +27,7 @@ class Recorder:
 
 
 def _session():
-    return SimpleNamespace(drained=asyncio.Event())
+    return SimpleNamespace(drained=asyncio.Event(), output_rate=server.SAMPLE_RATE)
 
 
 def test_off_unless_turned_on_and_an_area_may_have_its_own():
@@ -98,7 +98,9 @@ def played(wake_word: str = "okay_nabu", finished: bool = False, **settings) -> 
         app = Wake(**settings)
         call = server.Call(preroll_bytes=0, wake_word=wake_word)
         call.finished = finished
-        session = SimpleNamespace(call=call, satellite="kitchen", drained=asyncio.Event())
+        session = SimpleNamespace(
+            call=call, satellite="kitchen", drained=asyncio.Event(), output_rate=server.SAMPLE_RATE
+        )
         await app._wake_chime(session, call)
         return b"".join(app.played)
 
@@ -119,7 +121,9 @@ def test_what_says_the_wake_word_was_heard():
     async def gone():
         app = Wake()
         call = server.Call(preroll_bytes=0, wake_word="okay_nabu")
-        session = SimpleNamespace(call=None, satellite="kitchen", drained=asyncio.Event())
+        session = SimpleNamespace(
+            call=None, satellite="kitchen", drained=asyncio.Event(), output_rate=server.SAMPLE_RATE
+        )
         await app._wake_chime(session, call)
         return b"".join(app.played)
 

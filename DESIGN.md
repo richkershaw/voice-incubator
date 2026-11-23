@@ -144,7 +144,11 @@ device's `HELLO`:
 Several VPEs flashed from one YAML all report the same name (the config sets
 `name_add_mac_suffix: false`), so the MAC is what actually separates them. It is
 also what sessions are keyed on, taken from the mDNS TXT record so identity is
-known before connecting.
+known before connecting. Each satellite's last address is kept with it
+(`satellites.json` `host`, `port`) and dialled when the app starts, beside
+mDNS: one on a weak link may answer no queries until it announces itself
+again, which takes a power cycle (#21). Another satellite answering there
+(its DHCP lease moved) ends that session, and the address is forgotten.
 
 The device accepts **one client at a time** and refuses the rest rather than
 replacing them, which stops two apps from kicking each other off in a reconnect
@@ -1155,10 +1159,11 @@ a command with `mine` acts on (`people.mine`, in `actions.run`), and their
 own text-to-speech voice is the reply's (`VoiceIncubatorApp.voice_for`). What
 nothing here understood goes to the conversation agent of the person
 speaking -- theirs if they picked one (`people.json` `agent`), else the
-home's (`VoiceIncubatorApp.agent_for`; a sentence typed in Try has no
-speaker, so it is the home's) -- and its answers are said in a voice
-of theirs if they picked one (`people.json` `agent_voice`, else
-`settings.json` `agent_voice`; `VoiceIncubatorApp.agent_voice`). [ReDimNet-b2](models/speaker/) (22 MB, raw waveform in, mel frontend
+home's (`VoiceIncubatorApp.agent_for`; a sentence typed in Try is the
+picked person's, else the only person's, as a call is) -- and their own
+agent's answers are said in a voice of theirs if they picked one
+(`people.json` `agent_voice`, else `settings.json` `agent_voice`;
+`VoiceIncubatorApp.agent_voice`). [ReDimNet-b2](models/speaker/) (22 MB, raw waveform in, mel frontend
 inside the graph) embeds the AEC capture from 1.2 s before the end of the wake
 word to the end of the command -- "okay nabu" plus the command -- and the
 closest profile wins if its cosine clears `--speaker-threshold` (0.45).
@@ -2179,8 +2184,7 @@ command fallback -- a question still gets an answer:
    (`people.json` `agent`, the People page) has its own conversation there, so
    neither is sent the other's. A sentence goes to the agent of the person
    speaking -- theirs, else the home's (`VoiceIncubatorApp.agent_for`); one
-   typed in Try has no speaker unless one is picked there, so it goes to the
-   home's (or the picked person's). Each is kept for
+   typed in Try is the picked person's, else the only person's. Each is kept for
    `agent_keep_minutes` (5, the Voice PE's
    `conversation_timeout`) after the agent's last answer there. An LLM's
    answer is streamed through the integration
@@ -2200,8 +2204,8 @@ command fallback -- a question still gets an answer:
    an `agent.Answered` or `Streamed` -- are said in its own voice when it
    has one (`agent_voice`: `tts: builtin` with a Piper `voice` and
    `speaker`, else a TTS entity with `tts_language` and `tts_voice`;
-   `VoiceIncubatorApp.agent_voice`), or in the speaking person's own when
-   they picked one (`people.json` `agent_voice`). This replaced a small question LLM (Granite 4.0 350M or
+   `VoiceIncubatorApp.agent_voice`), or, for a person's own agent, in their
+   own when they picked one (`people.json` `agent_voice`). This replaced a small question LLM (Granite 4.0 350M or
    Gemma 3 1B in llama.cpp, for what read as a question); the benchmark
    numbers below are from then.
 

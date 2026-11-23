@@ -13,11 +13,14 @@ import time
 import wave
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field, replace
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import aiohttp
 import numpy as np
+import soxr
+from soundfile import SoundFileError
 
 from adapt_ctc.config import ConfigError
 from adapt_ctc.runtime import release_memory
@@ -30,6 +33,7 @@ from .arbitration import Arbiter, Utterance, levels
 from .calls import CallLog, CallRecord
 from .commands import HOME_TAKEN, VERBOSITY, command_of
 from .discover import Device, Discovery
+from .discover import Device as Found
 from .endpoint import VADS, WAKE_SECONDS, EndOfSpeech, Endpointer, micro_available, vad_gain, warm_start
 from .endpoint import parse as parse_end_of_speech
 from .fallback import (
@@ -55,6 +59,7 @@ from .protocol import (
     BYTES_PER_SAMPLE,
     HEADER,
     MAX_PAYLOAD,
+    OUTPUT_RATE,
     SAMPLE_RATE,
     Hello,
     Message,
@@ -68,7 +73,7 @@ from .speaker import PALETTE, Identification, SpeakerId
 from .store import Compiled, Device, Store
 from .piper_voices import Voice
 from .piper_voices import catalog as piper_catalog
-from .tts import Speech, sentences_of
+from .tts import Speech, audio_to_pcm, pcm_at, sentences_of
 from .wake import VerifyResult, WakeVerifier
 from .wake import ConfigError as WakeConfigError
 from .wake_ratio import DEFAULT_THRESHOLD as DEFAULT_RATIO, RatioVerdict, WakeRatio
@@ -136,9 +141,14 @@ ASKED_SECONDS = 60.0
 FROM_HOME_ASSISTANT = "home_assistant"
 """Who wrote the words recognized (Decision.text_source): Home Assistant,
 which sent them to the conversation agent."""
-SPEAKER = object()
-"""A fallback agent's name unless given (``_carry_out``'s ``agent_name``): the
-speaker's own."""
+REMEMBERED = "remembered"
+"""A Device's ``service`` when it is a satellite's last address
+(satellites.json), not one mDNS found."""
+
+
+class WrongSatellite(Exception):
+    """Another satellite answered at a remembered address (its DHCP lease
+    moved): the session ends there."""
 
 _AUDIO_STREAMS = frozenset(
     {Message.AUDIO_IN, Message.AUDIO_IN_AEC, Message.AUDIO_MONITOR, Message.AUDIO_MONITOR_AEC}
@@ -455,6 +465,7 @@ class Cues:
             if not self.sent:
                 self._session.drained.clear()  # an earlier "drained" must not answer for this
             self.until = max(self.until, asyncio.get_running_loop().time()) + len(sound) / BYTE_RATE
+            sound = pcm_at(sound, SAMPLE_RATE, self._session.output_rate)
             for offset in range(0, len(sound), MAX_PAYLOAD):
                 chunk = sound[offset : offset + MAX_PAYLOAD]
                 await self._app._send(self._session, Message.AUDIO_OUT, chunk)  # pylint: disable=protected-access
@@ -578,8 +589,14 @@ class Session:
     device_id: str = "unknown-device"
     satellite: str = ""
     """The satellite's key (its MAC) once it has said HELLO."""
+    remembered: bool = False
+    """Dialled at the address it had before the app restarted
+    (satellites.json): what answers there must say it is ``key``."""
     hello: dict = field(default_factory=dict)
     """Its HELLO, as sent."""
+    output_rate: int = SAMPLE_RATE
+    """What its AUDIO_OUT is sampled at: OUTPUT_RATE once it was told
+    (CONFIG), when it offers it; else the microphone's."""
     warned_quiet_aec: bool = False
     ringing: asyncio.Task | None = None
     """A finished timer ringing on this satellite."""
@@ -644,6 +661,10 @@ class Intercom:
     started: float = field(default_factory=time.monotonic)
     record: CallRecord | None = None
     limit: asyncio.Task | None = None
+    resamplers: dict[str, Any] = field(default_factory=dict)
+    """Each satellite's microphone at the other's output rate, by the
+    satellite it plays on: one stream each, so the chunks join without a
+    seam (soxr.ResampleStream)."""
     ended: bool = False
     duplex: Duplex = field(default_factory=Duplex)
     """What each sends the other: no squeal (voice_incubator/duplex.py)."""
@@ -1471,12 +1492,13 @@ class VoiceIncubatorApp:
 
     def agent_voice(self, satellite: Satellite, who: people.Speaker | None = None) -> Satellite:
         """The satellite as the conversation agent's answers are said: in the
-        speaking person's own voice for them when they have one (people.json
-        ``agent_voice``), else the agent's own (settings.json ``agent_voice``)
-        when it has one -- Piper's (``tts: builtin``, its ``voice`` and
-        ``speaker``; no voice: the area's or the whole home's), or a TTS
-        entity's, on the satellite's player for it."""
-        own = (who.own.get("agent_voice") if who is not None else None) or self.store.settings.get("agent_voice") or {}
+        speaking person's own voice for their own agent's answers (people.json
+        ``agent_voice``, with ``agent``), else the agent's own (settings.json
+        ``agent_voice``) when it has one -- Piper's (``tts: builtin``, its
+        ``voice`` and ``speaker``; no voice: the area's or the whole home's),
+        or a TTS entity's, on the satellite's player for it."""
+        theirs = who.own.get("agent_voice") if who is not None and who.own.get("agent") else None
+        own = theirs or self.store.settings.get("agent_voice") or {}
         if not own.get("tts"):
             return satellite
         if own["tts"] == BUILTIN:
@@ -1553,6 +1575,11 @@ class VoiceIncubatorApp:
         node = session.hello.get("name")
         if node and entry.get("node") != node:
             entry["node"] = str(node)  # its ESPHome name, for finding its music player
+            changed = True
+        # Its address, to dial after a restart before mDNS finds it: only one
+        # discovery keyed by its MAC (the HELLO's), so the two are one.
+        if session.key == session.satellite and (entry.get("host"), entry.get("port")) != (session.host, session.port):
+            entry["host"], entry["port"] = session.host, session.port
             changed = True
         if changed:
             self.store.save_satellites()
@@ -1780,6 +1807,13 @@ class VoiceIncubatorApp:
         # Which are disabled is Home Assistant's to say: don't take one
         # before it has (the models load first, so it seldom waits).
         await self.hass.wait_connected(HASS_FIRST_WAIT)
+        # Those served before, at their last address: one on a weak link may
+        # answer no mDNS queries until it announces itself (a power cycle).
+        # Found by mDNS meanwhile, it is served at the address found.
+        for device in self._remembered():
+            self._found[device.key] = device
+            if device.key not in self.hass.catalog.disabled_satellites:
+                self._start_session(device)
         self._discovery = Discovery()
         await self._discovery.start()
         try:
@@ -1820,12 +1854,35 @@ class VoiceIncubatorApp:
             elif key not in disabled and key not in self._sessions:
                 self._start_session(device)
 
+    def _remembered(self) -> list[Found]:
+        """The satellites served before, at the address each had
+        (satellites.json ``host``, ``port``)."""
+        found = []
+        for key, entry in self.store.satellites.items():
+            host, port = entry.get("host"), entry.get("port")
+            if isinstance(host, str) and host and isinstance(port, int) and not isinstance(port, bool):
+                found.append(Found(key, host, port, REMEMBERED))
+        return found
+
+    def _forget_address(self, key: str, host: str, port: int) -> None:
+        """Another satellite answers at ``key``'s last address now: it isn't
+        dialled there again, after a restart either."""
+        entry = self.store.satellites.get(key)
+        if entry is not None and (entry.get("host"), entry.get("port")) == (host, port):
+            entry.pop("host", None)
+            entry.pop("port", None)
+            self.store.save_satellites()
+        known = self._found.get(key)
+        if known is not None and known.service == REMEMBERED and (known.host, known.port) == (host, port):
+            del self._found[key]
+
     def _start_session(self, device: Device) -> None:
         existing = self._sessions.pop(device.key, None)
         if existing is not None:
             existing.cancel()
-        _LOGGER.info("Satellite appeared: %s", device)
-        session = Session(key=device.key, host=device.host, port=device.port)
+        remembered = device.service == REMEMBERED
+        _LOGGER.info("Satellite %s: %s", "remembered" if remembered else "appeared", device)
+        session = Session(key=device.key, host=device.host, port=device.port, remembered=remembered)
         task = asyncio.ensure_future(self._run_session(session))
         self._sessions[device.key] = task
         task.add_done_callback(
@@ -1868,8 +1925,11 @@ class VoiceIncubatorApp:
                 session.writer = writer
                 session.quiet_retries = False
                 started = time.monotonic()
+                wrong: WrongSatellite | None = None
                 try:
                     await self._read_loop(session, reader)
+                except WrongSatellite as err:
+                    wrong = err
                 except (asyncio.IncompleteReadError, ConnectionError, OSError) as err:
                     # OSError covers the keepalive firing on a rebooted device,
                     # which surfaces as ETIMEDOUT rather than a ConnectionError.
@@ -1898,6 +1958,11 @@ class VoiceIncubatorApp:
                     writer.close()
                     with contextlib.suppress(Exception):
                         await writer.wait_closed()
+                if wrong is not None:
+                    # mDNS finds it where it is now.
+                    _LOGGER.warning("Satellite %s: %s; its last address is forgotten", session.key, wrong)
+                    self._forget_address(session.key, session.host, session.port)
+                    return
 
                 # A connection that barely lived means something is wrong that
                 # retrying fast will not fix -- most often a second app holding the
@@ -2023,8 +2088,15 @@ class VoiceIncubatorApp:
         info = json.loads(payload) if payload else {}
 
         if msg_type == Message.HELLO:
+            if session.remembered and _satellite_key(info, session.key) != session.key:
+                raise WrongSatellite(f"{session.host}:{session.port} is {_satellite_key(info, session.key)} now")
             session.device_id = _device_id(info)
             session.hello = info
+            # Before any audio (protocol 3): replies at the speaker's own rate.
+            session.output_rate = SAMPLE_RATE
+            if OUTPUT_RATE in session.device.output_sample_rates:
+                await self._send_json(session, Message.CONFIG, {"output_sample_rate": OUTPUT_RATE})
+                session.output_rate = OUTPUT_RATE
             session.satellite = _satellite_key(info, session.key)
             self.sessions[session.satellite] = session
             self._remember_satellite(session)
@@ -3079,9 +3151,19 @@ class VoiceIncubatorApp:
         )
         if record is not None:
             ended = call.endpointer
+            speech_end = ended.speech_end if ended is not None else None
+            timing = {}
+            if speech_end is not None and call.last_audio is not None:
+                # Project the last word onto the session clock from the last
+                # AGC packet. The VAD can process buffered audio long after it
+                # arrives, and can stop partway through that buffer.
+                trailing = (len(call.audio) - call.split_bytes) / BYTE_RATE - speech_end
+                received_at = time.time() - record.started - (time.monotonic() - call.last_audio)
+                timing["speech_end_at"] = round(received_at - trailing, 3)
             record.stage(
                 "endpoint",
                 command_seconds=round(len(call.command) / BYTE_RATE, 3),
+                **timing,
                 **(
                     {
                         "vad": ended.vad,
@@ -3320,7 +3402,6 @@ class VoiceIncubatorApp:
         confirmed: bool = False,
         listens: bool = False,
         picked: list[str] | None = None,
-        agent_name: Any = SPEAKER,
     ) -> tuple[str | Streamed | None, str, str]:
         """Run (or show) the decided command. Returns what to say (None: a
         silent command, not even the acknowledgement sound; an LLM agent's
@@ -3331,13 +3412,12 @@ class VoiceIncubatorApp:
         see it; ``cue``: plays one of its sounds (asking the conversation
         agent); ``confirmed``: its question was answered yes (or can't be
         heard); ``listens``: the satellite hears an answer (which is asked);
-        ``picked``: which was answered; ``agent_name``: whose conversation
-        agent gets what nothing understood (the speaker's, unless given: a
-        typed test has no speaker). Two commands said together
+        ``picked``: which was answered. What nothing understood goes to the
+        speaker's conversation agent (agent_for). Two commands said together
         (``then``; voice_incubator/compound.py): each, and what both say as one."""
         if decision.command is not None and decision.then is not None:
             return await self._carry_out_both(decision, satellite, speaker, dry_run, record, wake_word)
-        agent = self.agent_for(speaker.get("name") if agent_name is SPEAKER else agent_name)
+        agent = self.agent_for(speaker.get("name"))
         if (
             decision.command is None
             and decision.answer is None
@@ -3687,8 +3767,10 @@ class VoiceIncubatorApp:
         quiet: bool = False, satellite: Satellite | None = None,
     ) -> None:
         """Say ``text`` on the satellite: with Home Assistant's TTS entity
-        when it has one, else Piper, a sentence at a time. An LLM agent's
-        answer (Streamed) is said a sentence at a time as it comes, by either.
+        when it has one (on its media player; without one, its audio played
+        over the call), else Piper, a sentence at a time; Piper takes over from
+        a TTS entity that fails. An LLM agent's answer (Streamed) is said a
+        sentence at a time as it comes, by either.
         ``quiet`` (at night): by Piper, quieter (voice_incubator/night.py).
         ``satellite``: as it says this (voice_for, agent_voice); else as it is."""
         satellite = satellite or self.satellite(session.satellite)
@@ -3697,58 +3779,80 @@ class VoiceIncubatorApp:
         pieces = sentences_of(text) if streamed is None else []
         coming = streamed.sentences() if streamed is not None else None
         # What is said, without markup: a streamed answer's as it comes.
-        said = list(pieces)
+        said: list[str] = []
+        target = voice.speak_on or satellite.device_media_player
+        tts = voice.tts if not quiet else None
         try:
-            if (pieces or coming is not None) and voice.tts and not quiet:
-                target = voice.speak_on or satellite.device_media_player
-                if target is None:
-                    _LOGGER.warning("[%s] No media player of its own in Home Assistant; speaking with Piper", session)
-                else:
-                    try:
-                        await self._quiet(session, close=True)
-                        if coming is None:
-                            await self._speak(session, satellite, target, " ".join(pieces), record)
-                        else:
-                            await self._speak_stream(session, satellite, target, coming, said, record)
-                        return
-                    except (HassError, ConnectionError, OSError, TimeoutError) as err:
-                        # (A streamed answer: Piper says what is still to come.)
-                        _LOGGER.warning("[%s] %s could not speak (%s); speaking with Piper", session, voice.tts, err)
-                        if record is not None:
-                            record.stage("speech_failed", tts=voice.tts, on=target, error=str(err))
-            # Piper, a sentence at a time, each played while the next is made
-            # (or comes); or -- with nothing to say -- the acknowledgement
+            if tts and target and (pieces or coming is not None):
+                try:
+                    await self._quiet(session, close=True)
+                    if coming is None:
+                        await self._speak(session, satellite, target, " ".join(pieces), record)
+                    else:
+                        await self._speak_stream(session, satellite, target, coming, said, record)
+                    return
+                except (HassError, ConnectionError, OSError, TimeoutError) as err:
+                    # (A streamed answer: Piper says what is still to come.)
+                    _LOGGER.warning("[%s] %s could not speak (%s); speaking with Piper", session, tts, err)
+                    if record is not None:
+                        record.stage("speech_failed", tts=tts, on=target, error=str(err))
+                    tts = None
+            # Without a media player, the satellite plays the TTS entity's
+            # audio over the call, as Piper's; Piper says a sentence it fails
+            # on and the rest. Or -- with nothing to say -- the acknowledgement
             # sound, which stays on the satellite even when its responses are
             # spoken elsewhere.
             started = time.perf_counter()
-            timing = {"seconds": 0, "synthesis": 0.0, "first": None}
-            acknowledge = await self.speech.sound(
-                "acknowledge", satellite.settings.get("instrument"), satellite.settings.get("pitch")
-            )
-            model, synthesis = await self._area_voice(satellite) if pieces or coming is not None else (None, None)
+            timing: dict[str, Any] = {"seconds": 0, "synthesis": 0.0, "first": None}
+            piper = await self._area_voice(satellite) if not tts and (pieces or coming is not None) else None
 
             async def each() -> AsyncIterator[str]:
                 for piece in pieces:
                     yield piece
                 if coming is not None:
                     async for piece in coming:
-                        said.append(piece)
                         yield piece
 
             async def spoken():
+                nonlocal tts, piper
                 async for piece in each():
-                    begun = time.perf_counter()
-                    async with self._model_lock:
-                        audio = await asyncio.to_thread(self.speech.synthesize, piece, synthesis, model)
-                    if quiet:
-                        audio = night_mode.quieter(audio)
-                    timing["synthesis"] += time.perf_counter() - begun
+                    rate = session.output_rate  # made at it: not resampled twice
+                    audio = None
+                    if tts:
+                        try:
+                            if "language" not in timing:
+                                timing["language"] = await self.voices.tts_language(tts, voice.tts_language)
+                            encoded = await self.hass.text_to_speech(tts, piece, timing["language"], voice.tts_voice)
+                            audio = await asyncio.to_thread(audio_to_pcm, BytesIO(encoded), rate)
+                            if not audio:
+                                raise HassError("empty TTS audio")
+                            timing["tts"] = tts
+                        except (HassError, OSError, TimeoutError, SoundFileError) as err:
+                            # Piper says this sentence and the rest.
+                            _LOGGER.warning("[%s] %s could not speak (%s); speaking with Piper", session, tts, err)
+                            if record is not None:
+                                record.stage("speech_failed", tts=tts, error=str(err))
+                            tts, audio = None, None
+                    if audio is None:
+                        if piper is None:
+                            piper = await self._area_voice(satellite)
+                        model, synthesis = piper
+                        begun = time.perf_counter()
+                        async with self._model_lock:
+                            audio = await asyncio.to_thread(self.speech.synthesize, piece, synthesis, model, rate)
+                        if quiet:
+                            audio = night_mode.quieter(audio)
+                        timing["synthesis"] += time.perf_counter() - begun
                     if timing["first"] is None:
                         timing["first"] = time.perf_counter() - started
                         await self._quiet(session, close=False)  # the reply follows the sounds
-                    timing["seconds"] += len(audio)
-                    yield audio
+                    timing["seconds"] += len(audio) * SAMPLE_RATE // rate
+                    said.append(piece)
+                    yield audio, rate
                 if timing["first"] is None:
+                    acknowledge = await self.speech.sound(
+                        "acknowledge", satellite.settings.get("instrument"), satellite.settings.get("pitch")
+                    )
                     timing["first"], timing["seconds"] = 0.0, len(acknowledge)
                     await self._quiet(session, close=False)
                     await self._after_cues(session, ACKNOWLEDGE_GAP)
@@ -3758,11 +3862,13 @@ class VoiceIncubatorApp:
                 await self._play_stream(session, spoken(), paced)
             finally:
                 if record is not None:
-                    # How long it is, how long Piper took to say it, and how long
-                    # until it began.
+                    # How long it is, how long Piper took to say it (the TTS
+                    # entity's, when it said some of it), and how long until it
+                    # began.
+                    entity = {"tts": timing["tts"], "voice": voice.tts_voice} if timing.get("tts") else {}
                     record.stage(
                         "speech", text=" ".join(said), seconds=round(timing["seconds"] / BYTE_RATE, 3),
-                        synthesis=_seconds(timing["synthesis"]),
+                        synthesis=_seconds(timing["synthesis"]), **entity,
                         first=_seconds(timing["first"]) if timing["first"] is not None else None,
                         pieces=len(said), **({"streamed": True} if streamed is not None else {}),
                     )
@@ -4022,7 +4128,7 @@ class VoiceIncubatorApp:
         elif outcome == "asked":
             asks = FollowUp("confirm", said, record.id, who, decision=decision)
         elif decision.asked is not None and decision.asked.wants_answer:
-            asks = FollowUp("agent", decision.asked.text, record.id, who)
+            asks = FollowUp("agent", decision.asked.text, record.id, who, agent=decision.asked.agent)
         else:
             asks = None
         if asks is not None and conversation:
@@ -4194,10 +4300,8 @@ class VoiceIncubatorApp:
         ``area``): as if heard word for word (no speech recognition), or
         (``speak``) said by Piper and recognized -- the whole pipeline after
         the wake word. ``speaker``: a person to take as the speaker, as if
-        their voice were recognized (their own agent, and what "my" means).
-        Without one, a typed sentence has no speaker to identify: what
-        nothing understood goes to the home's conversation agent, though
-        commands still see the only person, if there is one."""
+        their voice were recognized (their own agent, and what "my" means);
+        without one, the only person, if there is one, as for a call."""
         if satellite_key:
             satellite = self.satellite(satellite_key)
         else:
@@ -4230,7 +4334,7 @@ class VoiceIncubatorApp:
         decision = await self._referring(decision, satellite, record)
         decision = await self._listed(decision, satellite, record)
         speech, outcome, summary = await self._carry_out(
-            decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record, agent_name=said_by,
+            decision, self.voice_for(satellite, who), who.as_dict(), not run_actions, record,
         )
         if isinstance(speech, Streamed):
             speech = await speech.text()
@@ -4694,8 +4798,16 @@ class VoiceIncubatorApp:
         if peer is None or peer.writer is None or peer.intercom is not intercom:
             return
         chunk = intercom.duplex.relay(session.satellite, peer.satellite, chunk)
+        if peer.output_rate != SAMPLE_RATE:
+            stream = intercom.resamplers.get(peer.satellite)
+            if stream is None:
+                stream = intercom.resamplers[peer.satellite] = soxr.ResampleStream(
+                    SAMPLE_RATE, peer.output_rate, 1, dtype="int16"
+                )
+            chunk = stream.resample_chunk(np.frombuffer(chunk, dtype="<i2")).astype("<i2").tobytes()
         if peer.writer.transport.get_write_buffer_size() < INTERCOM_BACKLOG:
-            peer.writer.write(encode(Message.AUDIO_OUT, chunk))
+            for offset in range(0, len(chunk), MAX_PAYLOAD):
+                peer.writer.write(encode(Message.AUDIO_OUT, chunk[offset : offset + MAX_PAYLOAD]))
 
     async def end_intercom(self, intercom: Intercom, by: str) -> None:
         """Both satellites back to themselves: no more streaming, the end tone,
@@ -4826,8 +4938,10 @@ class VoiceIncubatorApp:
         await self._play_stream(session, once(), paced)
 
     async def _play_stream(self, session: Session, pieces, paced: bool = False) -> None:
-        """Stream audio as its pieces come (an async iterable of PCM), one
-        stream however many, and wait until the device has played it out.
+        """Stream audio as its pieces come (an async iterable of PCM: the
+        app's sounds at SAMPLE_RATE, or ``(pcm, rate)``), one stream however
+        many, at the satellite's output rate, and wait until the device has
+        played it out.
 
         ``paced``: stay at most PLAY_LEAD ahead of the device's clock, for
         audio outside a call (a ringing timer). The device's buffer only
@@ -4839,13 +4953,16 @@ class VoiceIncubatorApp:
         loop = asyncio.get_running_loop()
         started = None
         sent = 0
-        async for pcm in pieces:
+        byte_rate = session.output_rate * BYTES_PER_SAMPLE
+        async for piece in pieces:
+            pcm, rate = piece if isinstance(piece, tuple) else (piece, SAMPLE_RATE)
+            pcm = pcm_at(pcm, rate, session.output_rate)
             if started is None:
                 started = loop.time()
             for offset in range(0, len(pcm), MAX_PAYLOAD):
                 chunk = pcm[offset : offset + MAX_PAYLOAD]
                 if paced:
-                    ahead = sent / BYTE_RATE - (loop.time() - started)
+                    ahead = sent / byte_rate - (loop.time() - started)
                     if ahead > PLAY_LEAD:
                         await asyncio.sleep(ahead - PLAY_LEAD)
                 await self._send(session, Message.AUDIO_OUT, chunk)
