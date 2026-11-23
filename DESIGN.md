@@ -77,7 +77,7 @@ one call at a time on each:
    with settings.json `wake_chime` true, a short tone with a small room's
    reflections after it (`tones.wake`: one note, a two-note ding-dong either
    way, three notes stepping up, or a ping, chosen by `wake_chime_sound`, an
-   area's own too; the room is 50 ms, about ten dB below the note), sent once
+   area's own too; the room is 80 ms, about ten dB below the note), sent once
    Kaldi has accepted the wake word and the command is still being said -- so
    only a real wake word says it, only on the satellite that answers, and after
    the command has ended the `heard` sound stands for it instead. It is

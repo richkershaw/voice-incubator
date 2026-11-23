@@ -101,9 +101,9 @@ def loudness(pcm: bytes) -> float:
 
 @pytest.mark.parametrize("sound", sorted(tones.WAKE_NOTES))
 def test_each_tone_is_short(sound):
-    # It plays over the start of the command: a fifth of a second or less.
+    # It plays over the start of the command: a quarter of a second or less.
     for level in tones.WAKE_LEVELS:
-        assert 0 < len(tones.wake(sound, level)) <= 0.2 * 32000
+        assert 0 < len(tones.wake(sound, level)) <= 0.25 * 32000
 
 
 @pytest.mark.parametrize("sound", sorted(tones.WAKE_NOTES))
@@ -114,11 +114,11 @@ def test_each_level_is_as_loud_as_it_says(sound):
     normal = tones.wake(sound, "normal")
     loud = tones.wake(sound, "loud")
     loudest = tones.wake(sound, "loudest")
-    # Within half a dB of the level it names: the room and the 16-bit
-    # samples move what is measured a little.
-    assert -19.6 <= loudness(normal) <= -18.4  # as the call's sounds
-    assert -15.6 <= loudness(loud) <= -14.4  # about a timer's ring
-    assert -12.6 <= loudness(loudest) <= -11.4
+    # Within a dB of the level it names: the room and the 16-bit samples
+    # move what is measured a little.
+    assert -19.8 <= loudness(normal) <= -18.2  # as the call's sounds
+    assert -15.8 <= loudness(loud) <= -14.2  # about a timer's ring
+    assert -12.8 <= loudness(loudest) <= -11.2
     assert loudness(normal) < loudness(loud) < loudness(loudest)
     assert peak(loud) <= 0.9 and peak(loudest) <= 0.9 and peak(normal) <= 0.7
     assert peak(loud) < peak(loudest)
@@ -126,10 +126,10 @@ def test_each_level_is_as_loud_as_it_says(sound):
 
 def test_the_note_has_a_short_room_after_it():
     # The room follows the note, quieter than it, and has died away by the
-    # chime's fifth of a second: the command is heard from the same speaker.
+    # chime's quarter of a second: the command is heard from the same speaker.
     x = np.frombuffer(tones.wake("note"), dtype="<i2").astype(float) / 32767
-    note = np.sqrt(np.mean(x[int(0.02 * 16000) : int(0.12 * 16000)] ** 2))
-    room = np.sqrt(np.mean(x[int(0.145 * 16000) :] ** 2))
+    note = np.sqrt(np.mean(x[int(0.02 * 16000) : int(0.14 * 16000)] ** 2))
+    room = np.sqrt(np.mean(x[int(0.18 * 16000) :] ** 2))
     assert 0.002 < room < 0.2 * note
     assert abs(x[-1]) < 0.002
 

@@ -34,9 +34,9 @@ REVERB = 0.35
 """How much of the room is heard beside the tone: about ten dB below the
 note's own loudness."""
 
-REVERB_TAIL = 0.05
+REVERB_TAIL = 0.08
 """The room's length: a small room's first reflections, in the quiet after
-the note. Kept inside the chime's fifth of a second."""
+the note. Kept inside the chime's quarter of a second."""
 
 
 def _room_ir() -> np.ndarray:
@@ -50,7 +50,7 @@ def _room_ir() -> np.ndarray:
     for i, value in enumerate(noise):
         y = 0.35 * value + 0.65 * y
         low_pass[i] = y
-    ir = low_pass * np.exp(-t * 75.0)
+    ir = low_pass * np.exp(-t * 50.0)
     ir[: int(0.002 * SAMPLE_RATE)] = 0.0
     return ir / np.sqrt(np.sum(ir**2))
 
@@ -81,11 +81,11 @@ ENDED = bell([783.99, 523.25])
 """The intercom ends: down."""
 
 WAKE_NOTES: dict[str, tuple[list[float], float, float]] = {
-    "note": ([880.0], 0.13, 0.01),
-    "ding_dong": ([783.99, 523.25], 0.065, 0.005),
-    "dong_ding": ([523.25, 783.99], 0.065, 0.005),
-    "stairs": ([523.25, 587.33, 659.25], 0.045, 0.004),
-    "ping": ([1318.51], 0.07, 0.005),
+    "note": ([880.0], 0.16, 0.01),
+    "ding_dong": ([783.99, 523.25], 0.08, 0.005),
+    "dong_ding": ([523.25, 783.99], 0.08, 0.005),
+    "stairs": ([523.25, 587.33, 659.25], 0.052, 0.004),
+    "ping": ([1318.51], 0.08, 0.005),
 }
 """What the wake chime may be: the notes (Hz), how long each sounds, and the
 quiet after it (little: the room fills it). All short: the command being said
