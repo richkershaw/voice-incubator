@@ -47,6 +47,8 @@ ENDED = bell([783.99, 523.25])
 WAKE_NOTES: dict[str, tuple[list[float], float, float]] = {
     "note": ([880.0], 0.13, 0.03),
     "ding_dong": ([783.99, 523.25], 0.065, 0.02),
+    "dong_ding": ([523.25, 783.99], 0.065, 0.02),
+    "stairs": ([523.25, 587.33, 659.25], 0.045, 0.01),
     "ping": ([1318.51], 0.07, 0.02),
 }
 """What the wake chime may be: the notes (Hz), how long each sounds, and the

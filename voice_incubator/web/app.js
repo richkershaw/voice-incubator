@@ -556,7 +556,7 @@ async function trySounds(instrument, pitch) {
 }
 
 // The wake chime's tones, as the app makes them: the same button as the sounds'.
-const WAKE_CHIME_SOUNDS = { note: "Note", ding_dong: "Ding-dong", ping: "Ping" };
+const WAKE_CHIME_SOUNDS = { note: "Note", ding_dong: "Ding-dong", dong_ding: "Dong-ding", stairs: "Stairs", ping: "Ping" };
 const WAKE_CHIME_LEVELS = { normal: "As the sounds", loud: "Louder", loudest: "Loudest" };
 async function tryChime(sound, level) {
   try {

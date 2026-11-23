@@ -15,8 +15,8 @@ the commit the build came from.
 - **The optional wake-word chime is still here**, which this fork has and
   upstream doesn't yet: a short tone once the wake word is checked, in
   Settings > Responses or for one area on its page. Now with a choice of
-  tone (a note, a ding-dong or a ping) and of loudness (as the call's own
-  sounds, louder, or loudest), and a Try button.
+  tone (a note, a ding-dong, dong-ding, stairs, or a ping) and of loudness
+  (as the call's own sounds, louder, or loudest), and a Try button.
 
 ## 0.3.3
 
