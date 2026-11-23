@@ -76,10 +76,11 @@ to flash -- or, through [Wyoming](#other-satellites-through-wyoming), any
 satellite Home Assistant has.
 
 1. **The app.**
-   [![Add the repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FOHF-Voice%2Fapp-voice-incubator)
-   Add `https://github.com/OHF-Voice/app-voice-incubator` to Home Assistant's app
-   repositories, then install **Voice Incubator** and start it. The first time it
-   starts, it downloads its speech models -- about 530 MB: Parakeet (speech),
+   [![Add the repository to your Home Assistant.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Frichkershaw%2Fvoice-incubator)
+   Add `https://github.com/richkershaw/voice-incubator` to Home Assistant's app
+   repositories, then install **Voice Incubator (richkershaw's fork)** and start
+   it. The first time it starts, it downloads its speech models -- about
+   530 MB: Parakeet (speech),
    EmbeddingGemma 2 (meaning), GLiNER (the command fallback) and Piper's
    Kristin (its voice) -- into its own storage, and its page shows how far it
    got. Later starts and updates keep them.
@@ -120,28 +121,6 @@ nothing more -- add it to Home Assistant as a Wyoming Protocol integration --
 but finding the satellites does: they're found by mDNS, which a container's
 own network doesn't carry (`--host` reaches one without it). More options go
 after the image name.
-
-### As a Home Assistant app, from this fork
-
-This repository is its own app repository. Add
-`https://github.com/richkershaw/voice-incubator` in **Settings > Apps >
-Install app > ⋮ > Repositories**, then install
-**Voice Incubator (richkershaw's fork)**. It pulls
-`ghcr.io/richkershaw/voice-incubator-app`, which `.github/workflows/app.yml`
-builds from `app/` for amd64 and aarch64: on a published release whose tag is
-`app/config.yaml`'s version, or by hand. Make the package public in the
-fork's package settings once, or Home Assistant can't pull it. Bump the
-version before a build, or Home Assistant won't see a new one.
-
-To build it on the Home Assistant machine instead, write the source tarball
-and copy the `app` folder into the host's `addons` share as
-`voice_incubator`; then remove `image:` from its `config.yaml` (otherwise
-Home Assistant pulls the published one), check for updates, and install it
-from **Local apps**.
-
-```bash
-scripts/app_source.sh app
-```
 
 ### From source
 
