@@ -1,8 +1,9 @@
 # Changelog
 
-Fork builds are numbered upstream's release with the commit appended:
-`0.3.5-8dfa674`. The number before the dash is upstream's release; the rest is
-the commit the build came from.
+Fork builds are numbered upstream's release with a build number after it:
+`0.3.5.42`. The number before the build is upstream's release; the build
+number only rises, so Home Assistant sees each as a newer version. The stamp
+commit's message names the commit.
 
 ## 0.3.5
 

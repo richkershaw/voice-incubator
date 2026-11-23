@@ -1,9 +1,10 @@
 ---
 # The app's version, written after each push to main: app/config.yaml says
-# upstream's release number with the commit appended, "0.3.3-8dfa674".
-# Home Assistant reads that string from this repository and offers an update
-# whenever it changes, so every commit can be installed while the number
-# before the dash stays upstream's (voice_incubator/__init__.py).
+# upstream's release number with a build number after it, "0.3.5.42" (the
+# count of commits). Home Assistant enables its update when that version is
+# newer than the installed one, which a build number always is; a commit id
+# after a dash does not compare newer (0.3.5-abc against 0.3.5-def). The
+# number before the build stays upstream's (voice_incubator/__init__.py).
 #
 # A push made with GITHUB_TOKEN starts no workflow, so the commit this makes
 # does not run it again.
@@ -47,7 +48,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "App: version ${version} [skip ci]" -- app/config.yaml
+          git commit -m "App: version ${version} ($(git rev-parse --short HEAD)) [skip ci]" -- app/config.yaml
           for attempt in 1 2 3; do
             if git push origin main; then
               echo "app/config.yaml now says ${version}"

@@ -17,10 +17,11 @@ hand, or on a published release whose tag is the number before the commit.
 Make the package public once in the fork's package settings, or Home Assistant
 can't pull it.
 
-Its version is upstream's release with the commit appended (`0.3.5-b388c7a`),
+Its version is upstream's release with a build number after it (`0.3.5.42`),
 written to `config.yaml` by `.github/workflows/version.yml` after each push:
-Home Assistant offers an update whenever the string changes, so build the
-image once the "App version" run has finished.
+Home Assistant offers an update when it is newer, and the build number only
+rises. The stamp commit's message names the commit. Build the image once the
+"App version" run has finished.
 
 To build it on the Home Assistant machine instead, write the source tarball,
 copy this folder into the host's `addons` share as `voice_incubator`, remove
