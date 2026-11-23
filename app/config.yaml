@@ -2,7 +2,7 @@
 # Upstream's release number with the build number after it, "0.3.5.42", which
 # .github/workflows/version.yml writes after each push: Home Assistant reads
 # it from this repository, and offers an update when it is newer.
-version: 0.3.5-82bc3ca
+version: 0.3.5.1
 slug: voice_incubator
 name: "Voice Incubator (richkershaw's fork)"
 description: Voice satellites with your own commands, recognized on this machine
