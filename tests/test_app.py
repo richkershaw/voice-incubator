@@ -1340,6 +1340,25 @@ async def _wake_chime(tmp_path):
             async with http.put("/api/areas/kitchen", json={"settings": {"wake_chime": None}}) as response:
                 assert response.status == 200
         assert app.satellite(MAC).settings["wake_chime"] is True
+        # Its sound and loudness: the whole home's, then the area's own.
+        assert (app.wake_chime_sound(), app.wake_chime_level()) == ("note", "normal")
+        assert await put({"wake_chime_sound": "ping", "wake_chime_level": "loudest"}) == 200
+        assert (app.wake_chime_sound(), app.wake_chime_level()) == ("ping", "loudest")
+        assert (await play()).startswith(tones.wake("ping", "loudest"))
+        async with aiohttp.ClientSession(f"http://127.0.0.1:{http_port}") as http:
+            async with http.put("/api/areas/kitchen", json={"settings": {
+                "wake_chime_sound": "ding_dong", "wake_chime_level": "loud",
+            }}) as response:
+                assert response.status == 200
+            async with http.get("/api/status") as response:
+                status = await response.json()
+        assert (status["wake_chime_sound"], status["wake_chime_level"]) == ("ping", "loudest")
+        here = app.satellite(MAC).settings
+        assert (here["wake_chime_sound"], here["wake_chime_level"]) == ("ding_dong", "loud")
+        assert (await play()).startswith(tones.wake("ding_dong", "loud"))
+        # Only a tone and a loudness it knows.
+        assert await put({"wake_chime_sound": "gong"}) == 400
+        assert await put({"wake_chime_level": "quiet"}) == 400
         # At night: none of the sounds, the tone included.
         await hass.turn_night("kitchen", True)
         await wait_for(lambda: app.satellite(MAC).night)

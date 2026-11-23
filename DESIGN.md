@@ -74,13 +74,16 @@ one call at a time on each:
    `instrument` (a preset's name in underscores; none,
    `grand_piano`) from `pitch` (a note; none, the instrument's own),
    when first wanted, and kept. One more sound may open that stream first:
-   with settings.json `wake_chime` true, the short note in `tones.WAKE` (a
-   fixed tone, not the instrument), sent once Kaldi has accepted the wake word
-   and the command is still being said -- so only a real wake word says it,
-   only on the satellite that answers, and after the command has ended the
-   `heard` sound stands for it instead. It plays over the start of the
-   command, which STT hears on the AGC capture (not echo-cancelled), which is
-   why it is short.
+   with settings.json `wake_chime` true, a short tone (`tones.wake`: one
+   note, a two-note ding-dong or a ping, chosen by `wake_chime_sound`, an
+   area's own too), sent once Kaldi has accepted the wake word and the
+   command is still being said -- so only a real wake word says it, only on
+   the satellite that answers, and after the command has ended the `heard`
+   sound stands for it instead. It is levelled by loudness as the call's
+   sounds are: as loud as them (`wake_chime_level` `normal`), louder
+   (`loud`, about a timer's ring), or loudest (`loudest`). It plays over the
+   start of the command, which STT hears on the AGC capture (not
+   echo-cancelled), which is why it is short, and why it goes no louder.
 
 ## Running from source
 

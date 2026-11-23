@@ -173,7 +173,7 @@ class Instruments:
         with self._lock, _Synth(self.soundfont) as synth:
             synth.select(preset.bank, preset.program)
             return {
-                name: _ring_leveled(synth.play(played, tail=1.5, floor=RING_FLOOR)) if name == RING else _leveled(synth.play(played))
+                name: _ring_leveled(synth.play(played, tail=1.5, floor=RING_FLOOR)) if name == RING else leveled(synth.play(played))
                 for name, played in notes(key).items()
             }
 
@@ -182,12 +182,14 @@ def _ring_leveled(x: np.ndarray) -> np.ndarray:
     """At RING_LOUDNESS as the stock sound was measured -- loud already: what
     sounds, measured again once louder, is more of it."""
     for _ in range(3):
-        x = _leveled(x, RING_LOUDNESS, RING_PEAK)
+        x = leveled(x, RING_LOUDNESS, RING_PEAK)
     return x
 
 
-def _leveled(x: np.ndarray, loudness: float = LOUDNESS, peak: float = PEAK) -> np.ndarray:
-    """At ``loudness`` where it sounds, its peak at most ``peak``."""
+def leveled(x: np.ndarray, loudness: float = LOUDNESS, peak: float = PEAK) -> np.ndarray:
+    """At ``loudness`` where it sounds (its RMS in dB of full scale, over the
+    samples that sound), its peak at most ``peak``. The call's sounds and the
+    wake chime are made as loud as each other this way."""
     sounding = x[np.abs(x) > 0.003]
     if not len(sounding):
         return x

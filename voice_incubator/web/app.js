@@ -555,6 +555,18 @@ async function trySounds(instrument, pitch) {
   } catch (err) { toast(err.message); }
 }
 
+// The wake chime's tones, as the app makes them: the same button as the sounds'.
+const WAKE_CHIME_SOUNDS = { note: "Note", ding_dong: "Ding-dong", ping: "Ping" };
+const WAKE_CHIME_LEVELS = { normal: "As the sounds", loud: "Louder", loudest: "Loudest" };
+async function tryChime(sound, level) {
+  try {
+    const response = await fetch("api/chime/try", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sound, level }) });
+    if (!response.ok) throw new Error((await response.json()).error || response.statusText);
+    soundsAudio.src = URL.createObjectURL(await response.blob());
+    await soundsAudio.play();
+  } catch (err) { toast(err.message); }
+}
+
 function tryButton(instrument, pitch) {
   return h("button", { type: "button", title: "Play the sounds here", onclick: () => trySounds(instrument.value, pitch ? pitch.value : null) }, "Try");
 }
@@ -570,6 +582,20 @@ function responsesPanel() {
     try { await api("PUT", "settings", { wake_chime: e.target.checked }); toast("Saved"); await refreshStatus(); }
     catch (err) { toast(err.message); }
   } });
+  // Its tone and loudness, which an area may have its own of.
+  const chimeSound = h("select", { "aria-label": "Chime sound", onchange: saveChime },
+    Object.entries(WAKE_CHIME_SOUNDS).map(([value, label]) =>
+      h("option", { value, selected: (((state.status || {}).wake_chime_sound) || "note") === value }, label)));
+  const chimeLevel = h("select", { "aria-label": "Chime loudness", onchange: saveChime },
+    Object.entries(WAKE_CHIME_LEVELS).map(([value, label]) =>
+      h("option", { value, selected: (((state.status || {}).wake_chime_level) || "normal") === value }, label)));
+  async function saveChime() {
+    try {
+      await api("PUT", "settings", { wake_chime_sound: chimeSound.value, wake_chime_level: chimeLevel.value });
+      toast("Saved");
+      await refreshStatus();
+    } catch (err) { toast(err.message); }
+  }
   const instrument = h("select", { onchange: async (e) => {
     try {
       await api("PUT", "settings", { instrument: e.target.value });
@@ -595,7 +621,7 @@ function responsesPanel() {
     catch (err) { toast(err.message); }
   } }, Object.entries(AT_MOST).map(([value, label]) => h("option", { value, selected: (verbosity.at_most || "") === value }, label)));
   return h("div", { class: "panel" },
-    withOwn(heading("h2", "Responses", "Each command says as much as its own level when it's done: a beep, a brief fixed sentence (“Turned on the lights.”), a specific one (“Turned on the lights in the Kitchen.”) or a verbose one (“Turned on Ceiling and Lamp in the Kitchen.”). Lights beep; timers, locks and lists say what they did. Set it on the command's page."), ["sounds", "wake_chime", "instrument", "pitch", "at_most"]),
+    withOwn(heading("h2", "Responses", "Each command says as much as its own level when it's done: a beep, a brief fixed sentence (“Turned on the lights.”), a specific one (“Turned on the lights in the Kitchen.”) or a verbose one (“Turned on Ceiling and Lamp in the Kitchen.”). Lights beep; timers, locks and lists say what they did. Set it on the command's page."), ["sounds", "wake_chime", "wake_chime_sound", "wake_chime_level", "instrument", "pitch", "at_most"]),
     h("div", { class: "row", style: "align-items:flex-start" },
       field("A beep out of sight says", select, "A beep is enough where you can see it happen: in the satellite's own area. Somewhere else — another area, a floor, a device in no area — a command that beeps says this instead. Home Assistant's own says the brief one."),
       field("Response Level", atMost, "No command says more than this, whatever its own level; a question still answers. An area may have its own.")),
@@ -603,7 +629,12 @@ function responsesPanel() {
       h("label", {}, sounds, "Sounds", hint("A sound the moment a command ends, another before saying it wasn't understood or went wrong, another as the conversation agent is asked, and another when the microphone opens for an answer.")),
       h("label", {}, wakeChime, "Chime when the wake word is heard", hint("A short tone once the wake word has been checked, for a satellite whose ring isn't in sight. It plays over the start of the command, since the check takes a moment. Off unless turned on.")),
       field("Instrument", instrument, "What the sounds, the beep when a command is done, and a timer's ring are played on."),
-      field("Pitch", h("div", { class: "row" }, pitch, tryButton(instrument, pitch)), "The note the sounds and the ring start from.")));
+      field("Pitch", h("div", { class: "row" }, pitch, tryButton(instrument, pitch)), "The note the sounds and the ring start from.")),
+    h("div", { class: "row" },
+      field("Chime sound", h("div", { class: "row" }, chimeSound, h("button", { type: "button", onclick: () => tryChime(chimeSound.value, chimeLevel.value) }, "Try")),
+        "The tone once the wake word is checked. It plays over the start of the command, which speech recognition hears too, so all of them are short."),
+      field("Chime loudness", chimeLevel,
+        "As the sounds: the call's other sounds' loudness. Louder is about a timer's ring's; Loudest is as loud as it goes, and the command's speech is heard from the same speaker.")));
 }
 
 // The home's own things (a command's home), by the entity domain they are:
@@ -5357,6 +5388,14 @@ function areaSettingsPanel(area) {
       ["wake_chime", "Wake chime", "responses", status.wake_chime === true, (v) => (v ? "On" : "Off"),
         (v, onChange) => select([["true", "On"], ["false", "Off"]], String(v), (x) => onChange(x === "true")),
         "A short tone once the wake word has been checked, for when the ring isn't in sight. It plays over the start of the command."],
+      ["wake_chime_sound", "Chime sound", "responses", status.wake_chime_sound || "note",
+        (v) => WAKE_CHIME_SOUNDS[v || "note"],
+        (v, onChange) => select(Object.entries(WAKE_CHIME_SOUNDS), v || "note", (x) => onChange(x)),
+        "The tone once the wake word has been checked."],
+      ["wake_chime_level", "Chime loudness", "responses", status.wake_chime_level || "normal",
+        (v) => WAKE_CHIME_LEVELS[v || "normal"],
+        (v, onChange) => select(Object.entries(WAKE_CHIME_LEVELS), v || "normal", (x) => onChange(x)),
+        "As the call's sounds, louder, or loudest: the command is recognized from the same speaker."],
       ["instrument", "Instrument", "responses", status.instrument, (v) => ((instruments.find((i) => i.id === v) || {}).name || v),
         (v, onChange) => {
           const chosen = h("select", { "aria-label": "Instrument", onchange: (e) => onChange(e.target.value) }, instrumentOptions(v));

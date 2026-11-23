@@ -5029,14 +5029,17 @@ class VoiceIncubatorApp:
     async def _wake_chime(self, session: Session, call: Call) -> None:
         """The short tone that says the wake word was heard (``wake_chime``):
         once the app has checked it, and the command is still being said --
-        after it, the "heard" sound says so instead. Not for the button."""
+        after it, the "heard" sound says so instead. Not for the button.
+        Its sound and loudness are the home's or the area's
+        (``wake_chime_sound``, ``wake_chime_level``)."""
         if session.call is not call or call.finished or call.wake_word == PRESS_TO_TALK:
             return
-        if not self.satellite(session.satellite).settings["wake_chime"]:
+        here = self.satellite(session.satellite).settings
+        if not here["wake_chime"]:
             return
         cues = self._cues(session, call)
         if cues is not None:
-            await cues.play(tones.WAKE)
+            await cues.play(tones.wake(here["wake_chime_sound"], here["wake_chime_level"]))
             _LOGGER.debug("[%s] Wake chime after %r", session, call.wake_word)
 
     def _wake_json(self, word_id: str | None) -> dict[str, Any]:
@@ -5175,6 +5178,17 @@ class VoiceIncubatorApp:
         checked, off unless true. An area may have its own
         (voice_incubator/areas.py)."""
         return areas.whole_wake_chime(self.store.settings)
+
+    def wake_chime_sound(self) -> str:
+        """settings.json ``wake_chime_sound``: the chime's tone (``note``
+        unless another). An area may have its own (voice_incubator/areas.py)."""
+        return areas.whole_wake_chime_sound(self.store.settings)
+
+    def wake_chime_level(self) -> str:
+        """settings.json ``wake_chime_level``: how loud the chime is (as the
+        call's sounds unless another). An area may have its own
+        (voice_incubator/areas.py)."""
+        return areas.whole_wake_chime_level(self.store.settings)
 
     async def _hang_up(self, session: Session, reason: str, listen: FollowUp | None = None) -> None:
         """End the call -- and, ``listen``, have the satellite start the one

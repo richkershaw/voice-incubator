@@ -20,7 +20,8 @@ What an area may have its own of (``KEYS``):
   none: an area without one plays on whichever player is there.
 - ``voice`` (and its ``speaker``): Piper's voice, which replies are said in.
 - ``sounds`` (false: none), ``instrument`` and ``pitch``: the call's sounds;
-  and ``wake_chime``: a short tone once a wake word here has been checked.
+  and ``wake_chime``: a short tone once a wake word here has been checked,
+  with its ``wake_chime_sound`` and ``wake_chime_level``.
 - ``at_most``: the most a command says, ``brief`` or ``beep`` (the whole
   home's may have one too); a question still answers.
 - ``silence_seconds``: silence that ends a command (a satellite's own wins).
@@ -38,6 +39,7 @@ from adapt_ctc.config import ConfigError
 from .commands import HOME_THINGS, VERBOSITY
 from .endpoint import LIMITS
 from .instruments import key_of, note_name
+from .tones import WAKE_LEVELS, WAKE_NOTES
 
 HOME = ("climate", "shopping_list", "todo_list")
 """The home's own things an area may have its own of."""
@@ -45,7 +47,7 @@ AT_MOST = ("brief", "beep")
 """The most a command may say, where it is capped."""
 KEYS = (
     *HOME, "music_player", "voice", "speaker", "sounds", "instrument", "pitch", "wake_chime", "at_most",
-    "silence_seconds",
+    "wake_chime_sound", "wake_chime_level", "silence_seconds",
 )
 
 
@@ -72,6 +74,39 @@ def whole_wake_chime(settings: dict[str, Any]) -> bool:
     return settings.get("wake_chime") is True
 
 
+def wake_chime_sound_value(value: Any) -> str | None:
+    """A wake chime's sound (``tones.WAKE_NOTES``), or None for the default
+    (``note``). Raises ConfigError."""
+    if value in (None, ""):
+        return None
+    if value not in WAKE_NOTES:
+        raise ConfigError(f"wake_chime_sound: one of {', '.join(WAKE_NOTES)}")
+    return str(value)
+
+
+def wake_chime_level_value(value: Any) -> str | None:
+    """How loud the wake chime is (``tones.WAKE_LEVELS``), or None for the
+    default (``normal``: the call's sounds). Raises ConfigError."""
+    if value in (None, ""):
+        return None
+    if value not in WAKE_LEVELS:
+        raise ConfigError(f"wake_chime_level: one of {', '.join(WAKE_LEVELS)}")
+    return str(value)
+
+
+def whole_wake_chime_sound(settings: dict[str, Any]) -> str:
+    """The whole home's ``wake_chime_sound``: a short note unless another."""
+    value = settings.get("wake_chime_sound")
+    return value if value in WAKE_NOTES else "note"
+
+
+def whole_wake_chime_level(settings: dict[str, Any]) -> str:
+    """The whole home's ``wake_chime_level``: as the call's sounds unless
+    another."""
+    value = settings.get("wake_chime_level")
+    return value if value in WAKE_LEVELS else "normal"
+
+
 def effective(settings: dict[str, Any], area: str | None) -> dict[str, Any]:
     """What a satellite in ``area`` uses: the area's own, else the whole
     home's. ``voice``/``speaker`` and ``silence_seconds`` are only the
@@ -89,6 +124,14 @@ def effective(settings: dict[str, Any], area: str | None) -> dict[str, Any]:
         "pitch": mine.get("pitch") or settings.get("pitch"),
         "wake_chime": (
             mine["wake_chime"] if isinstance(mine.get("wake_chime"), bool) else whole_wake_chime(settings)
+        ),
+        "wake_chime_sound": (
+            mine["wake_chime_sound"] if mine.get("wake_chime_sound") in WAKE_NOTES
+            else whole_wake_chime_sound(settings)
+        ),
+        "wake_chime_level": (
+            mine["wake_chime_level"] if mine.get("wake_chime_level") in WAKE_LEVELS
+            else whole_wake_chime_level(settings)
         ),
         "at_most": at_most if at_most in AT_MOST else None,
         "silence_seconds": mine.get("silence_seconds"),
@@ -166,6 +209,10 @@ def put(settings: dict[str, Any], area: str, values: dict[str, Any] | None, voic
         elif key == "wake_chime":
             if not isinstance(value, bool):
                 raise ConfigError("wake_chime: true or false")
+        elif key == "wake_chime_sound":
+            value = wake_chime_sound_value(value)
+        elif key == "wake_chime_level":
+            value = wake_chime_level_value(value)
         elif key == "instrument":
             if value not in instruments:
                 raise ConfigError(f"instrument: no instrument {value!r}")

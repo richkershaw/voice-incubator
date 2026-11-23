@@ -25,7 +25,7 @@ from ruamel.yaml import YAML
 from adapt_ctc.config import ConfigError
 from adapt_ctc.template import TemplateError, expand
 
-from . import __version__, areas, languages, music, timers
+from . import __version__, areas, languages, music, timers, tones
 from .capabilities import CAPABILITIES
 from .capabilities import can as capabilities_can
 from .endpoint import LIMITS
@@ -178,6 +178,7 @@ async def start_web(app: "VoiceIncubatorApp") -> web.AppRunner:
             web.get("/api/piper/voices", api.piper_voices),
             web.post("/api/piper/try", api.try_piper),
             web.post("/api/sounds/try", api.try_sounds),
+            web.post("/api/chime/try", api.try_chime),
             web.get("/api/agents", api.agents),
             web.get("/api/voices/{entity_id}", api.tts_voices),
             web.put("/api/settings", api.put_settings),
@@ -314,6 +315,8 @@ class Api:
                 # what note (null: the instrument's own), of which.
                 "sounds": app.sounds(),
                 "wake_chime": app.wake_chime(),
+                "wake_chime_sound": app.wake_chime_sound(),
+                "wake_chime_level": app.wake_chime_level(),
                 "instrument": app.speech.instruments.resolve(app.instrument()) or INSTRUMENT,
                 "pitch": app.pitch(),
                 "instruments": [
@@ -753,6 +756,20 @@ class Api:
             wav.setsampwidth(2)
             wav.setframerate(SAMPLE_RATE)
             wav.writeframes(gap.join(made.get(name, b"") for name in (*SOUNDS, RING)))
+        return web.Response(body=out.getvalue(), content_type="audio/wav")
+
+    async def try_chime(self, request: web.Request) -> web.Response:
+        """The wake chime as ``sound`` at ``level`` (the Settings page's,
+        before they are saved), as WAV."""
+        body = await _json_or_empty(request)
+        sound = areas.wake_chime_sound_value(body.get("sound")) or "note"
+        level = areas.wake_chime_level_value(body.get("level")) or "normal"
+        out = io.BytesIO()
+        with wave.open(out, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(SAMPLE_RATE)
+            wav.writeframes(tones.wake(sound, level))
         return web.Response(body=out.getvalue(), content_type="audio/wav")
 
     async def delete_name(self, request: web.Request) -> web.Response:
@@ -1586,6 +1603,18 @@ class Api:
                 settings["wake_chime"] = True
             else:
                 settings.pop("wake_chime", None)  # off unless turned on
+        if "wake_chime_sound" in body:
+            value = areas.wake_chime_sound_value(body["wake_chime_sound"])
+            if value and value != "note":
+                settings["wake_chime_sound"] = value
+            else:
+                settings.pop("wake_chime_sound", None)  # the default note
+        if "wake_chime_level" in body:
+            value = areas.wake_chime_level_value(body["wake_chime_level"])
+            if value and value != "normal":
+                settings["wake_chime_level"] = value
+            else:
+                settings.pop("wake_chime_level", None)  # as the call's sounds
         if "at_most" in body:
             value = areas.at_most_value(body["at_most"])
             if value:
